@@ -28,3 +28,8 @@ sortie
 *.dll
 *.so
 *.dylib
+
+# Local task files
+.specs
+.plans
+.tasks

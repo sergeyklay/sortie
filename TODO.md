@@ -42,7 +42,7 @@ business logic. Every subsequent task assumes this foundation exists.
       **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
       `docs/decisions/README.md` index is updated.
 
-- [ ] 0.7 Research and write ADR-0005: Prompt template engine. Evaluate Go `text/template`
+- [x] 0.7 Research and write ADR-0005: Prompt template engine. Evaluate Go `text/template`
       with `missingkey=error` vs `pongo2` (Jinja2-like) vs Handlebars via Go library vs
       simple string interpolation. Consider: this is user-facing API surface — workflow
       authors write templates, and changing the engine breaks all existing workflows.
@@ -52,7 +52,7 @@ business logic. Every subsequent task assumes this foundation exists.
       **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
       `docs/decisions/README.md` index is updated.
 
-- [ ] 0.8 Set up structured logging with `slog`: configure default logger with key=value
+- [x] 0.8 Set up structured logging with `slog`: configure default logger with key=value
       output, define helper to create sub-loggers with `issue_id`, `issue_identifier`, and
       `session_id` context fields. This foundation is used by all subsequent milestones.
       **Verify:** unit test creates a logger with context fields, writes a message, confirms
