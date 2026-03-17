@@ -1,10 +1,10 @@
 ---
-status: draft
+status: accepted
 date: 2026-03-17
 decision-makers: Serghei Iakovlev
 ---
 
-# Workflow File Format
+# Use YAML Front Matter for Workflow Files
 
 ## Context and Problem Statement
 
@@ -26,8 +26,10 @@ team leads.
    unambiguous. Mixing the two leads to parsing fragility and author confusion.
 3. **Ecosystem familiarity.** The format should leverage conventions the target audience
    already knows, minimizing the learning curve.
-4. **Parsing simplicity.** The parser should be implementable in under 50 lines of Go with
-   no special libraries beyond a YAML decoder.
+4. **Parsing simplicity.** The parsing rules must be simple enough to implement without a
+   full Markdown parser — only a line-oriented delimiter scanner and a YAML decoder — but
+   the implementation must be covered by edge-case tests (CRLF line endings, trailing
+   whitespace on delimiters, missing closing delimiter, empty front matter).
 5. **Prompt-friendly.** The prompt body is Markdown with embedded Go template directives.
    The format must not require escaping Markdown syntax or template delimiters.
 
@@ -51,11 +53,12 @@ body with an empty config map. The YAML front matter must decode to a map; non-m
 
 **Parsing rules:**
 
-1. If the file starts with `---\n`, scan for the next line that is exactly `---`.
-2. Bytes between the delimiters are YAML front matter; decode to `map[string]any`.
-3. Remaining bytes after the closing delimiter are the prompt template, trimmed of leading
+1. Normalize line endings: replace all `\r\n` with `\n` before any delimiter scanning.
+2. If the normalized file starts with `---\n`, scan for the next line that is exactly `---`.
+3. Bytes between the delimiters are YAML front matter; decode to `map[string]any`.
+4. Remaining bytes after the closing delimiter are the prompt template, trimmed of leading
    and trailing whitespace.
-4. If no opening `---` is found, `config` is an empty map and the entire file is the prompt
+5. If no opening `---` is found, `config` is an empty map and the entire file is the prompt
    template.
 
 This convention is established by Jekyll, Hugo, Astro, and most static site generators.
@@ -90,3 +93,38 @@ doubles the number of files to manage, breaks the single-file mental model, and 
 a file-reference indirection that complicates validation (missing prompt file, relative path
 resolution, file watcher must track two files). For a tool designed to be dropped into a
 repository with minimal ceremony, two files create unnecessary friction.
+
+## Consequences
+
+### Positive
+
+- Single file to discover, review, and version.
+- Prompt body is native Markdown — no YAML indentation, no escaping.
+- YAML `|` literal blocks allow inline multi-line hook scripts.
+- Familiar convention for the target audience (Jekyll, Hugo, Astro).
+
+### Negative
+
+- **No IDE schema validation for front matter.** A standalone `sortie.yaml` would allow JSON
+  Schema binding in VS Code / GoLand for autocompletion and error highlighting. YAML embedded
+  in Markdown front matter lacks standard IDE schema support. Mitigation: Dispatch Preflight
+  Validation (architecture Section 6.3) catches configuration errors before the first poll
+  cycle, but errors surface at runtime rather than at edit time. To close this gap, the CLI
+  should expose a `sortie validate [path]` subcommand that parses and validates the workflow
+  file without starting the orchestrator, enabling integration into pre-commit hooks and CI
+  pipelines. This requires a corresponding addition to the architecture doc (Section 17.7).
+- **Inline hook scripts are triple-nested (Bash in YAML in Markdown).** IDEs cannot provide
+  syntax highlighting or linting for shell scripts inside YAML literal blocks inside `.md`
+  files. Multi-line inline scripts are fragile: shell error line numbers cannot be correlated
+  back to `WORKFLOW.md` line numbers, and YAML indentation errors silently truncate the
+  script. The config layer should support file-path references (e.g.,
+  `after_create: ./hooks/setup.sh`) as an alternative to inline scripts from the initial
+  implementation, reserving inline values for one-liners like
+  `before_run: git checkout -b {{.issue.identifier}}`. This requires amending the hook field
+  definitions in the architecture doc (Section 5.3.4) from `shell script string` to
+  `shell script string or file path`.
+- **YAML type coercion risks.** YAML 1.1 treats bare `NO`, `ON`, `YES` as booleans. The
+  implementation must use `gopkg.in/yaml.v3`, which follows YAML 1.2 semantics for
+  `map[string]any` targets (these values decode as strings, not booleans). The parser test
+  matrix must include cases with values like `NO`, `ON`, `YES`, and `null` as string
+  literals to verify correct behavior.

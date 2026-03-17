@@ -27,13 +27,13 @@ business logic. Every subsequent task assumes this foundation exists.
       on push and PR. Use a Go matrix build (latest stable Go version).
       **Verify:** push to GitHub triggers CI and all jobs pass.
 
-- [ ] 0.5 Add a `CLAUDE.md` (or `AGENTS.md`) context file for coding agents. Include: build
+- [x] 0.5 Add a `CLAUDE.md` (or `AGENTS.md`) context file for coding agents. Include: build
       commands, test commands, project structure overview, naming conventions, and architectural
       boundaries that agents must not violate.
       **Verify:** an agent reading the file can answer "how do I build and test this project"
       without additional context.
 
-- [ ] 0.6 Research and write ADR-0004: Workflow file format. Evaluate YAML front matter in
+- [x] 0.6 Research and write ADR-0004: Workflow file format. Evaluate YAML front matter in
       Markdown (current spec) vs TOML front matter vs pure YAML vs separate config + prompt
       files. Consider: single-file UX for workflow authors, parsing complexity, ecosystem
       familiarity (TOML gaining traction in Go/Rust ecosystems, YAML dominant in DevOps),
