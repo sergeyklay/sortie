@@ -33,7 +33,26 @@ business logic. Every subsequent task assumes this foundation exists.
       **Verify:** an agent reading the file can answer "how do I build and test this project"
       without additional context.
 
-- [ ] 0.6 Set up structured logging with `slog`: configure default logger with key=value
+- [ ] 0.6 Research and write ADR-0004: Workflow file format. Evaluate YAML front matter in
+      Markdown (current spec) vs TOML front matter vs pure YAML vs separate config + prompt
+      files. Consider: single-file UX for workflow authors, parsing complexity, ecosystem
+      familiarity (TOML gaining traction in Go/Rust ecosystems, YAML dominant in DevOps),
+      front matter delimiter conventions, and how prompt body is separated from config.
+      Document the decision in `docs/decisions/0004-workflow-file-format.md`.
+      **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
+      `docs/decisions/README.md` index is updated.
+
+- [ ] 0.7 Research and write ADR-0005: Prompt template engine. Evaluate Go `text/template`
+      with `missingkey=error` vs `pongo2` (Jinja2-like) vs Handlebars via Go library vs
+      simple string interpolation. Consider: this is user-facing API surface — workflow
+      authors write templates, and changing the engine breaks all existing workflows.
+      Trade-offs: stdlib simplicity and zero dependencies vs richer filters/syntax, agent
+      generation quality for each syntax, error message clarity on template mistakes.
+      Document the decision in `docs/decisions/0005-prompt-template-engine.md`.
+      **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
+      `docs/decisions/README.md` index is updated.
+
+- [ ] 0.8 Set up structured logging with `slog`: configure default logger with key=value
       output, define helper to create sub-loggers with `issue_id`, `issue_identifier`, and
       `session_id` context fields. This foundation is used by all subsequent milestones.
       **Verify:** unit test creates a logger with context fields, writes a message, confirms
@@ -44,9 +63,11 @@ business logic. Every subsequent task assumes this foundation exists.
 Parse `WORKFLOW.md`, expose typed config, and support dynamic reload. No orchestration logic
 yet - just the ability to read, validate, and watch the workflow file.
 
-- [ ] 1.1 Research YAML parsing libraries for Go (`gopkg.in/yaml.v3`, `github.com/goccy/go-yaml`)
-      and Go template engine behavior (`text/template` strict mode). Select libraries and add
-      them to `go.mod`.
+- [ ] 1.1 Select and add parsing libraries to `go.mod` based on ADR-0004 (workflow file format)
+      and ADR-0005 (template engine) decisions. If YAML was chosen: evaluate `gopkg.in/yaml.v3`
+      vs `github.com/goccy/go-yaml`. If TOML: evaluate `github.com/BurntSushi/toml` vs
+      `github.com/pelletier/go-toml/v2`. For the template engine, add the library selected in
+      ADR-0005.
       **Verify:** `go mod tidy` succeeds, dependencies resolve.
 
 - [ ] 1.2 Implement the workflow loader: read a file, split YAML front matter from Markdown
@@ -370,25 +391,36 @@ the system does real work.
 
 ## Milestone 8: Observability
 
-HTTP dashboard, JSON API, and enhanced logging. The system should be monitorable by
-operators after this milestone. Note: basic structured logging infrastructure was set up
-in task 0.6; this milestone adds the observability surfaces that consume orchestrator state.
+Observability surfaces. The system should be monitorable by operators after this milestone.
+Basic structured logging was set up in task 0.8; this milestone decides the observability
+model (ADR-0008), enhances logging, and implements the chosen surfaces.
 
-- [ ] 8.1 Audit and enhance structured logging across all modules: confirm `issue_id`,
+- [ ] 8.1 Research and write ADR-0008: Observability model. Evaluate embedded HTTP server
+      with JSON API + HTML dashboard (current spec) vs Prometheus `/metrics` endpoint
+      consumed by external Grafana vs structured logs only (consumed by log aggregation) vs
+      Unix socket + reverse proxy. Consider: the "single binary, zero infrastructure" deployment
+      model vs integration with existing monitoring stacks (most Go production services use
+      Prometheus). The embedded dashboard optimizes for zero-dependency operation but diverges
+      from industry convention. Document the decision in
+      `docs/decisions/0008-observability-model.md`.
+      **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
+      `docs/decisions/README.md` index is updated.
+
+- [ ] 8.2 Audit and enhance structured logging across all modules: confirm `issue_id`,
       `issue_identifier`, and `session_id` context fields are present on all relevant log
       lines (dispatch, retry, reconciliation, worker lifecycle, agent events). Add any
       missing context. Confirm key=value format is consistent.
       **Verify:** run the orchestrator with mock adapters, grep logs for structured fields,
       confirm they are present and consistent across all lifecycle events.
 
-- [ ] 8.2 Implement the runtime snapshot function (Section 13.3): return running sessions
+- [ ] 8.3 Implement the runtime snapshot function (Section 13.3): return running sessions
       (including `turn_count` per row), retry queue, agent totals (`input_tokens`,
       `output_tokens`, `total_tokens`, `seconds_running` computed as cumulative ended-session
       time plus active-session elapsed time from `started_at`), and rate limits.
       **Verify:** unit test populates orchestrator state, calls snapshot, confirms all
       fields are populated including computed `seconds_running`.
 
-- [ ] 8.3 Implement the JSON API server (Section 13.7.2): `GET /api/v1/state`,
+- [ ] 8.4 Implement the JSON API server (Section 13.7.2): `GET /api/v1/state`,
       `GET /api/v1/<identifier>` (404 for unknown issues), `POST /api/v1/refresh` (202
       Accepted). Use Go `net/http` and `encoding/json`. Bind to loopback by default. Enable
       via `--port` flag (overrides `server.port` from WORKFLOW.md). Return `405` for
@@ -396,7 +428,7 @@ in task 0.6; this milestone adds the observability surfaces that consume orchest
       **Verify:** integration test starts the HTTP server, calls each endpoint, validates
       response shapes against the architecture doc (Section 13.7.2).
 
-- [ ] 8.4 Implement the HTML dashboard (Section 13.7.1): server-rendered page at `/` showing
+- [ ] 8.5 Implement the HTML dashboard (Section 13.7.1): server-rendered page at `/` showing
       running sessions, retry queue, token totals, runtime seconds, recent events. Use Go
       `html/template`. Add auto-refresh via SSE or meta-refresh.
       **Verify:** start Sortie with `--port 8080`, open `http://localhost:8080` in a browser,
