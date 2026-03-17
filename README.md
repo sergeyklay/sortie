@@ -10,7 +10,7 @@ Engineers manage work at the ticket level. Agents handle implementation.
 
 ## Why "Sortie"
 
-A *sortie* is a military and aviation term for a single mission executed autonomously. The
+A _sortie_ is a military and aviation term for a single mission executed autonomously. The
 metaphor is precise: the orchestrator dispatches agents on missions (issues), each with an
 isolated workspace, a defined objective, and an expected return. The name is short, two
 syllables, pronounceable across languages, and does not conflict with existing projects in
@@ -35,7 +35,7 @@ to the workflow are detected and applied without restart.
 Sortie is a single Go binary. It uses SQLite for persistent state (retry queues, session
 metadata, run history) and communicates with coding agents over stdio. The orchestrator
 is the single authority for all scheduling decisions; there is no external job queue or
-distributed coordination.
+distributed coordination. For full architectural details, see [docs/architecture.md](docs/architecture.md).
 
 Issue trackers and coding agents are integrated through adapter interfaces. Adding support
 for a new tracker or agent is an additive change: implement the interface in a new package.
