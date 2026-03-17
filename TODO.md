@@ -18,7 +18,7 @@ business logic. Every subsequent task assumes this foundation exists.
       layout.
       **Verify:** `go run ./cmd/sortie` prints version string and exits 0.
 
-- [ ] 0.3 Configure linting and formatting: add `golangci-lint` config (`.golangci.yml`),
+- [x] 0.3 Configure linting and formatting: add `golangci-lint` config (`.golangci.yml`),
       create a `Makefile` with targets `fmt`, `lint`, `test`, `build`. Ensure `make lint`
       passes on the empty project.
       **Verify:** `make lint` and `make fmt` exit 0 with no warnings.
