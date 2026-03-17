@@ -4,7 +4,11 @@ Spec-first, agent-developed orchestration service. The architecture document is 
 
 ## Commands
 
-No build system exists yet. Task 0.3 in TODO.md creates the Makefile with `fmt`, `lint`, `test`, `build` targets and `golangci-lint` config. Until that task is complete, there are no project commands to run.
+- `make fmt` — format all Go source files.
+- `make lint` — run `golangci-lint` (must be installed separately).
+- `make test` — run all tests with `-race`.
+- `make build` — compile the `sortie` binary into the repo root.
+- `make clean` — remove the compiled binary.
 
 - Integration tests are env-gated: `SORTIE_JIRA_TEST=1` for Jira, `SORTIE_CLAUDE_TEST=1` for Claude Code. Without these vars, integration tests must skip cleanly — never fail.
 - SQLite library: use `modernc.org/sqlite` (pure Go). Never `mattn/go-sqlite3` — CGo breaks the single-binary zero-dependency deployment model.
