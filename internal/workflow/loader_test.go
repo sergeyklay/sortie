@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -204,7 +205,7 @@ func TestWorkflowError_Error(t *testing.T) {
 	t.Run("ErrParseError_hint", func(t *testing.T) {
 		e := &WorkflowError{Kind: ErrParseError, Path: "test.md", Err: errors.New("yaml: bad")}
 		msg := e.Error()
-		if want := "did you forget the closing '---' delimiter?"; !containsSubstring(msg, want) {
+		if want := "did you forget the closing '---' delimiter?"; !strings.Contains(msg, want) {
 			t.Errorf("ErrParseError message missing hint\n  want substring: %q\n  got: %q", want, msg)
 		}
 	})
@@ -212,7 +213,7 @@ func TestWorkflowError_Error(t *testing.T) {
 	t.Run("ErrMissingFile_path", func(t *testing.T) {
 		e := &WorkflowError{Kind: ErrMissingFile, Path: "/some/path.md", Err: errors.New("no such file")}
 		msg := e.Error()
-		if !containsSubstring(msg, "/some/path.md") {
+		if !strings.Contains(msg, "/some/path.md") {
 			t.Errorf("ErrMissingFile message missing path\n  got: %q", msg)
 		}
 	})
@@ -220,7 +221,7 @@ func TestWorkflowError_Error(t *testing.T) {
 	t.Run("ErrFrontMatterNotMap_type", func(t *testing.T) {
 		e := &WorkflowError{Kind: ErrFrontMatterNotMap, Path: "t.md", Err: errors.New("got []interface {}")}
 		msg := e.Error()
-		if !containsSubstring(msg, "YAML map") {
+		if !strings.Contains(msg, "YAML map") {
 			t.Errorf("ErrFrontMatterNotMap message missing 'YAML map'\n  got: %q", msg)
 		}
 	})
@@ -256,17 +257,4 @@ func assertMapsEqual(t *testing.T, want, got map[string]any) {
 			t.Errorf("key %q: want %v (%T), got %v (%T)", k, wv, wv, gv, gv)
 		}
 	}
-}
-
-func containsSubstring(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || findSubstring(s, sub))
-}
-
-func findSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
