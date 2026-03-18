@@ -1,8 +1,3 @@
-// Package workflow loads and parses Sortie workflow files. A workflow
-// file combines YAML front matter (structured configuration) with a
-// Markdown prompt template in a single document. Start with [Load] to
-// obtain a [Workflow] value from a file path, and inspect [WorkflowError]
-// for structured failure diagnostics.
 package workflow
 
 import "fmt"
