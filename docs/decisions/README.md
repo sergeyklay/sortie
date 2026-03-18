@@ -12,3 +12,4 @@ This directory contains architecturally significant decisions for Sortie, docume
 | [0003](0003-adapter-based-integration.md)  | Use adapter interfaces for integration extensibility | Accepted |
 | [0004](0004-workflow-file-format.md)       | Use YAML Front Matter for Workflow Files             | Accepted |
 | [0005](0005-prompt-template-engine.md)     | Use Go text/template for Prompt Rendering            | Accepted |
+| [0006](0006-use-fsnotify-for-file-watching.md) | Use fsnotify for Filesystem Event Watching       | Accepted |

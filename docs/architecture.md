@@ -146,6 +146,8 @@ Sortie is organized into these layers:
 - Coding agent CLI or executable reachable via the configured agent adapter.
 - Host environment authentication for the issue tracker and coding agent.
 - SQLite library (embedded, no external server).
+- Filesystem event library (`github.com/fsnotify/fsnotify`) for `WORKFLOW.md` live reload.
+  Pure Go, no CGo, no external daemon. See ADR-0006.
 
 ## 4. Core Domain Model
 
