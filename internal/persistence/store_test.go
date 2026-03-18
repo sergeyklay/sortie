@@ -93,3 +93,182 @@ func TestOpen_BasicCRUD(t *testing.T) {
 		t.Fatalf("deleted %d rows, want 1", n)
 	}
 }
+
+func TestSaveAndLoadRetryEntry(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	entry := RetryEntry{
+		IssueID:    "ISS-1",
+		Identifier: "PROJ-1",
+		Attempt:    1,
+		DueAtMs:    1000,
+		Error:      nil,
+	}
+	if err := s.SaveRetryEntry(ctx, entry); err != nil {
+		t.Fatalf("SaveRetryEntry: %v", err)
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.IssueID != "ISS-1" {
+		t.Errorf("IssueID = %q, want %q", got.IssueID, "ISS-1")
+	}
+	if got.Identifier != "PROJ-1" {
+		t.Errorf("Identifier = %q, want %q", got.Identifier, "PROJ-1")
+	}
+	if got.Attempt != 1 {
+		t.Errorf("Attempt = %d, want 1", got.Attempt)
+	}
+	if got.DueAtMs != 1000 {
+		t.Errorf("DueAtMs = %d, want 1000", got.DueAtMs)
+	}
+	if got.Error != nil {
+		t.Errorf("Error = %v, want nil", got.Error)
+	}
+}
+
+func TestSaveRetryEntry_Upsert(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	entry1 := RetryEntry{
+		IssueID:    "ISS-1",
+		Identifier: "PROJ-1",
+		Attempt:    1,
+		DueAtMs:    1000,
+		Error:      nil,
+	}
+	if err := s.SaveRetryEntry(ctx, entry1); err != nil {
+		t.Fatalf("SaveRetryEntry (first): %v", err)
+	}
+
+	errMsg := "retry failed"
+	entry2 := RetryEntry{
+		IssueID:    "ISS-1",
+		Identifier: "PROJ-1",
+		Attempt:    2,
+		DueAtMs:    2000,
+		Error:      &errMsg,
+	}
+	if err := s.SaveRetryEntry(ctx, entry2); err != nil {
+		t.Fatalf("SaveRetryEntry (upsert): %v", err)
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.Attempt != 2 {
+		t.Errorf("Attempt = %d, want 2", got.Attempt)
+	}
+	if got.DueAtMs != 2000 {
+		t.Errorf("DueAtMs = %d, want 2000", got.DueAtMs)
+	}
+	if got.Error == nil {
+		t.Fatal("Error = nil, want non-nil")
+	}
+	if *got.Error != "retry failed" {
+		t.Errorf("Error = %q, want %q", *got.Error, "retry failed")
+	}
+}
+
+func TestDeleteRetryEntry(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	e1 := RetryEntry{IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 1000}
+	e2 := RetryEntry{IssueID: "ISS-2", Identifier: "PROJ-2", Attempt: 1, DueAtMs: 2000}
+	if err := s.SaveRetryEntry(ctx, e1); err != nil {
+		t.Fatalf("SaveRetryEntry (ISS-1): %v", err)
+	}
+	if err := s.SaveRetryEntry(ctx, e2); err != nil {
+		t.Fatalf("SaveRetryEntry (ISS-2): %v", err)
+	}
+
+	if err := s.DeleteRetryEntry(ctx, "ISS-1"); err != nil {
+		t.Fatalf("DeleteRetryEntry: %v", err)
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].IssueID != "ISS-2" {
+		t.Errorf("IssueID = %q, want %q", entries[0].IssueID, "ISS-2")
+	}
+}
+
+func TestDeleteRetryEntry_Nonexistent(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	if err := s.DeleteRetryEntry(ctx, "no-such-id"); err != nil {
+		t.Fatalf("DeleteRetryEntry on empty table returned error: %v", err)
+	}
+}
+
+func TestLoadRetryEntries_Empty(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if entries == nil {
+		t.Fatal("returned nil slice, want non-nil empty slice")
+	}
+	if len(entries) != 0 {
+		t.Fatalf("got %d entries, want 0", len(entries))
+	}
+}
+
+func TestLoadRetryEntries_OrderByDueAtMs(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	for _, e := range []RetryEntry{
+		{IssueID: "ISS-3", Identifier: "PROJ-3", Attempt: 1, DueAtMs: 3000},
+		{IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 1000},
+		{IssueID: "ISS-2", Identifier: "PROJ-2", Attempt: 1, DueAtMs: 2000},
+	} {
+		if err := s.SaveRetryEntry(ctx, e); err != nil {
+			t.Fatalf("SaveRetryEntry(%s): %v", e.IssueID, err)
+		}
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+
+	wantDue := []int64{1000, 2000, 3000}
+	for i, want := range wantDue {
+		if entries[i].DueAtMs != want {
+			t.Errorf("entries[%d].DueAtMs = %d, want %d", i, entries[i].DueAtMs, want)
+		}
+	}
+}
