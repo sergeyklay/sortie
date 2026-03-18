@@ -1,7 +1,7 @@
 # Sortie
 
-[![CI](https://github.com/sergeyklay/sortie/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeyklay/sortie/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/sergeyklay/sortie/graph/badge.svg?token=K2TPXBCbvb)](https://codecov.io/gh/sergeyklay/sortie)
+[![CI](https://github.com/sortie-ai/sortie/actions/workflows/ci.yml/badge.svg)](https://github.com/sortie-ai/sortie/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/sortie-ai/sortie/graph/badge.svg?token=K2TPXBCbvb)](https://codecov.io/gh/sortie-ai/sortie)
 
 Sortie is an orchestration service that turns issue tracker tickets into autonomous coding
 agent sessions. It polls for work, creates isolated per-issue workspaces, dispatches agents,
