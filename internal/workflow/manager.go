@@ -2,9 +2,11 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -32,6 +34,7 @@ type Manager struct {
 	done    chan struct{}
 	stopped sync.Once
 	wg      sync.WaitGroup
+	started atomic.Bool
 }
 
 // NewManager creates a [Manager] for the workflow file at path. It
@@ -39,6 +42,9 @@ type Manager struct {
 // the config is invalid, NewManager returns an error so the caller can
 // fail startup. The logger is used for reload diagnostics.
 func NewManager(path string, logger *slog.Logger) (*Manager, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	wf, err := Load(path)
 	if err != nil {
 		return nil, err
@@ -120,6 +126,9 @@ func (m *Manager) Reload() error {
 // events. This does not detect Kubernetes ConfigMap symlink swaps; the
 // orchestrator's defensive re-validation before dispatch covers that gap.
 func (m *Manager) Start(ctx context.Context) error {
+	if !m.started.CompareAndSwap(false, true) {
+		return fmt.Errorf("workflow.Manager: Start called more than once")
+	}
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
