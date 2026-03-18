@@ -129,6 +129,12 @@ func TestLoad(t *testing.T) {
 			wantConfig: map[string]any{},
 			wantPrompt: "---",
 		},
+		{
+			name:       "OpeningDelimiterOnly",
+			content:    []byte("---\n"),
+			wantConfig: map[string]any{},
+			wantPrompt: "",
+		},
 	}
 
 	for _, tt := range tests {
