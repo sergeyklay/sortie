@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -35,10 +36,10 @@ func writeWorkflow(t *testing.T, path string, content []byte) {
 	}
 }
 
-// pollUntil calls fn repeatedly until it returns true or the timeout
-// elapses. Returns whether the condition was met.
-func pollUntil(timeout time.Duration, fn func() bool) bool {
-	deadline := time.Now().Add(timeout)
+// pollUntil calls fn repeatedly until it returns true or a 3-second
+// deadline elapses. Returns whether the condition was met.
+func pollUntil(fn func() bool) bool {
+	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if fn() {
 			return true
@@ -187,7 +188,7 @@ func TestManager_WatchPicksUpChange(t *testing.T) {
 
 	writeWorkflow(t, path, validWorkflow(10000))
 
-	ok := pollUntil(3*time.Second, func() bool {
+	ok := pollUntil(func() bool {
 		return mgr.Config().Polling.IntervalMS == 10000
 	})
 	if !ok {
@@ -220,19 +221,18 @@ func TestManager_WatchInvalidRetainsGood(t *testing.T) {
 	// Write invalid YAML.
 	writeWorkflow(t, path, []byte("---\n[[[bad yaml\n---\nprompt\n"))
 
-	// Wait for the debounce + reload to happen.
-	time.Sleep(300 * time.Millisecond)
+	// Wait until the reload actually fired — confirmed by LastLoadError becoming
+	// set — then assert the last-known-good config was preserved.
+	ok := pollUntil(func() bool {
+		return mgr.LastLoadError() != nil
+	})
+	if !ok {
+		t.Fatal("reload of invalid file was not detected within timeout")
+	}
 
 	if mgr.Config().Polling.IntervalMS != 5000 {
 		t.Errorf("after invalid reload: Polling.IntervalMS = %d, want 5000",
 			mgr.Config().Polling.IntervalMS)
-	}
-
-	ok := pollUntil(1*time.Second, func() bool {
-		return mgr.LastLoadError() != nil
-	})
-	if !ok {
-		t.Error("LastLoadError() is nil after invalid reload, want non-nil")
 	}
 }
 
@@ -255,15 +255,17 @@ func TestManager_ConcurrentReadSafety(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
+	// Readers spin until the reload is confirmed to have completed, ensuring
+	// concurrent access actually overlaps with the write under -race.
+	var reloaded atomic.Bool
 	var wg sync.WaitGroup
 	const readers = 10
-	const iterations = 100
 
 	for range readers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range iterations {
+			for !reloaded.Load() {
 				_ = mgr.Config()
 				_ = mgr.PromptTemplate()
 				_ = mgr.LastLoadError()
@@ -271,10 +273,20 @@ func TestManager_ConcurrentReadSafety(t *testing.T) {
 		}()
 	}
 
-	// Concurrently trigger a file change.
 	writeWorkflow(t, path, validWorkflow(7777))
 
+	ok := pollUntil(func() bool {
+		if mgr.Config().Polling.IntervalMS == 7777 {
+			reloaded.Store(true)
+			return true
+		}
+		return false
+	})
 	wg.Wait()
+
+	if !ok {
+		t.Error("config not updated within timeout: Polling.IntervalMS did not reach 7777")
+	}
 }
 
 func TestManager_DebounceCoalescence(t *testing.T) {
@@ -304,7 +316,7 @@ func TestManager_DebounceCoalescence(t *testing.T) {
 	}
 
 	// Wait for debounce + reload.
-	ok := pollUntil(3*time.Second, func() bool {
+	ok := pollUntil(func() bool {
 		return mgr.Config().Polling.IntervalMS == 6000
 	})
 	if !ok {
@@ -337,7 +349,7 @@ func TestManager_DeleteAndRecreate(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	writeWorkflow(t, path, validWorkflow(8888))
 
-	ok := pollUntil(3*time.Second, func() bool {
+	ok := pollUntil(func() bool {
 		return mgr.Config().Polling.IntervalMS == 8888
 	})
 	if !ok {
@@ -348,7 +360,7 @@ func TestManager_DeleteAndRecreate(t *testing.T) {
 	// Confirm watcher is still alive — write a third value.
 	writeWorkflow(t, path, validWorkflow(9999))
 
-	ok = pollUntil(3*time.Second, func() bool {
+	ok = pollUntil(func() bool {
 		return mgr.Config().Polling.IntervalMS == 9999
 	})
 	if !ok {
@@ -441,7 +453,7 @@ func TestManager_RecoverAfterInvalidReload(t *testing.T) {
 	// Now write valid content again — watcher should recover.
 	writeWorkflow(t, path, validWorkflow(7777))
 
-	ok := pollUntil(3*time.Second, func() bool {
+	ok := pollUntil(func() bool {
 		return mgr.Config().Polling.IntervalMS == 7777
 	})
 	if !ok {
