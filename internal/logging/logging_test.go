@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergeyklay/sortie/internal/logging"
+	"github.com/sortie-ai/sortie/internal/logging"
 )
 
 func TestSetup(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/sergeyklay/sortie
+module github.com/sortie-ai/sortie
 
 go 1.26.1
 
