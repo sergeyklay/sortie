@@ -24,7 +24,7 @@ func Setup(w io.Writer, level slog.Level) {
 }
 
 // WithIssue derives a child logger that attaches the tracker-native
-// issue_id and the normalised issue_identifier to every subsequent
+// issue_id and the normalized issue_identifier to every subsequent
 // record. The returned logger is safe for concurrent use and may be
 // further enriched via [WithSession].
 func WithIssue(logger *slog.Logger, issueID string, issueIdentifier string) *slog.Logger {

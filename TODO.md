@@ -70,7 +70,7 @@ yet - just the ability to read, validate, and watch the workflow file.
       ADR-0005.
       **Verify:** `go mod tidy` succeeds, dependencies resolve.
 
-- [ ] 1.2 Implement the workflow loader: read a file, split YAML front matter from Markdown
+- [x] 1.2 Implement the workflow loader: read a file, split YAML front matter from Markdown
       body, parse front matter into a map, return `{config, prompt_template}`. Handle error
       cases: missing file, invalid YAML, non-map front matter.
       **Verify:** unit tests cover happy path, missing file, bad YAML, non-map YAML.
