@@ -63,7 +63,7 @@ business logic. Every subsequent task assumes this foundation exists.
 Parse `WORKFLOW.md`, expose typed config, and support dynamic reload. No orchestration logic
 yet - just the ability to read, validate, and watch the workflow file.
 
-- [ ] 1.1 Select and add parsing libraries to `go.mod` based on ADR-0004 (workflow file format)
+- [x] 1.1 Select and add parsing libraries to `go.mod` based on ADR-0004 (workflow file format)
       and ADR-0005 (template engine) decisions. If YAML was chosen: evaluate `gopkg.in/yaml.v3`
       vs `github.com/goccy/go-yaml`. If TOML: evaluate `github.com/BurntSushi/toml` vs
       `github.com/pelletier/go-toml/v2`. For the template engine, add the library selected in
