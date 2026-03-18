@@ -284,7 +284,6 @@ func expandPath(val string) (string, error) {
 			return "", fmt.Errorf("cannot expand ~: %w", err)
 		}
 		val = filepath.Join(home, val[1:])
-		return val, nil
 	}
 	return os.ExpandEnv(val), nil
 }
