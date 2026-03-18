@@ -130,9 +130,9 @@ func NewServiceConfig(raw map[string]any) (ServiceConfig, error) {
 func buildTrackerConfig(m map[string]any) TrackerConfig {
 	return TrackerConfig{
 		Kind:           extractString(m, "kind"),
-		Endpoint:       resolveEnv(extractString(m, "endpoint")),
+		Endpoint:       resolveEnvRef(extractString(m, "endpoint")),
 		APIKey:         resolveEnv(extractString(m, "api_key")),
-		Project:        resolveEnv(extractString(m, "project")),
+		Project:        resolveEnvRef(extractString(m, "project")),
 		ActiveStates:   extractStringSlice(mapVal(m, "active_states")),
 		TerminalStates: extractStringSlice(mapVal(m, "terminal_states")),
 	}
@@ -259,6 +259,19 @@ func buildAgentConfig(m map[string]any) (AgentConfig, error) {
 
 func resolveEnv(val string) string {
 	return os.ExpandEnv(val)
+}
+
+// resolveEnvRef performs targeted environment variable resolution: it
+// expands the value only when the entire string is an env var reference
+// ($VAR or ${VAR}). Mixed content such as URIs with embedded
+// $-references is returned unchanged to avoid destructive rewriting
+// (architecture Section 6.1: do not rewrite URIs).
+func resolveEnvRef(val string) string {
+	trimmed := strings.TrimSpace(val)
+	if strings.HasPrefix(trimmed, "$") {
+		return os.ExpandEnv(trimmed)
+	}
+	return val
 }
 
 func expandPath(val string) (string, error) {

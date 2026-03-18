@@ -141,6 +141,28 @@ func TestNewServiceConfig(t *testing.T) {
 	})
 
 	t.Run("EnvResolution/Embedded", func(t *testing.T) {
+		t.Setenv("MY_TOKEN", "secret123")
+		cfg, err := NewServiceConfig(map[string]any{
+			"tracker": map[string]any{"api_key": "Bearer $MY_TOKEN"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringEqual(t, "Tracker.APIKey", "Bearer secret123", cfg.Tracker.APIKey)
+	})
+
+	t.Run("EnvResolution/EndpointWholeVar", func(t *testing.T) {
+		t.Setenv("JIRA_URL", "https://jira.example.com/rest/api/3")
+		cfg, err := NewServiceConfig(map[string]any{
+			"tracker": map[string]any{"endpoint": "$JIRA_URL"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringEqual(t, "Tracker.Endpoint", "https://jira.example.com/rest/api/3", cfg.Tracker.Endpoint)
+	})
+
+	t.Run("EnvResolution/EndpointPreservesInlineVar", func(t *testing.T) {
 		t.Setenv("JIRA_HOST", "jira.example.com")
 		cfg, err := NewServiceConfig(map[string]any{
 			"tracker": map[string]any{"endpoint": "https://$JIRA_HOST/rest/api/3"},
@@ -148,7 +170,8 @@ func TestNewServiceConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertStringEqual(t, "Tracker.Endpoint", "https://jira.example.com/rest/api/3", cfg.Tracker.Endpoint)
+		// Inline $VAR in URIs must NOT be expanded (architecture Section 6.1).
+		assertStringEqual(t, "Tracker.Endpoint", "https://$JIRA_HOST/rest/api/3", cfg.Tracker.Endpoint)
 	})
 
 	t.Run("EnvResolution/UnsetVar", func(t *testing.T) {
