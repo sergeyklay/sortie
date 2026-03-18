@@ -73,6 +73,10 @@ recommended for production use.
 - `go.mod` gains `github.com/fsnotify/fsnotify v1.9.0` (direct) and
   `golang.org/x/sys` (indirect, quasi-stdlib, Go-team maintained).
 - The binary remains CGo-free and statically linkable.
+- Kernel event APIs can fire multiple events for a single logical save (editors that write
+  in chunks, or that flush and sync separately). Consumers must debounce the event stream;
+  the current implementation uses a 50 ms coalescing timer so that rapid successive writes
+  (common in IDE auto-save) trigger only one reload.
 - Kubernetes ConfigMap volume mounts use a double-symlink strategy that causes the parent
   directory watch to miss some update events. This is a known limitation documented in
   `Manager.Start`. Operators using ConfigMap mounts should call `Reload()` via an external

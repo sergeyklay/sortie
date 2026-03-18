@@ -102,7 +102,7 @@ yet - just the ability to read, validate, and watch the workflow file.
       **Verify:** unit test renders a first-turn prompt and a continuation prompt for the same
       issue, confirms the continuation prompt is shorter and does not duplicate the task body.
 
-- [ ] 1.6 Implement filesystem watcher for `WORKFLOW.md`. On change, re-read and re-apply
+- [x] 1.6 Implement filesystem watcher for `WORKFLOW.md`. On change, re-read and re-apply
       config. On invalid reload, keep last known good config and log an error. Expose a
       method to get the current effective config.
       **Verify:** integration test modifies a temp WORKFLOW.md file, confirms new config is
@@ -393,16 +393,16 @@ the system does real work.
 
 Observability surfaces. The system should be monitorable by operators after this milestone.
 Basic structured logging was set up in task 0.8; this milestone decides the observability
-model (ADR-0008), enhances logging, and implements the chosen surfaces.
+model (ADR-0007), enhances logging, and implements the chosen surfaces.
 
-- [ ] 8.1 Research and write ADR-0008: Observability model. Evaluate embedded HTTP server
+- [ ] 8.1 Research and write ADR-0007: Observability model. Evaluate embedded HTTP server
       with JSON API + HTML dashboard (current spec) vs Prometheus `/metrics` endpoint
       consumed by external Grafana vs structured logs only (consumed by log aggregation) vs
       Unix socket + reverse proxy. Consider: the "single binary, zero infrastructure" deployment
       model vs integration with existing monitoring stacks (most Go production services use
       Prometheus). The embedded dashboard optimizes for zero-dependency operation but diverges
       from industry convention. Document the decision in
-      `docs/decisions/0008-observability-model.md`.
+      `docs/decisions/0007-observability-model.md`.
       **Verify:** ADR exists with status `accepted`, covers at least 3 alternatives, and
       `docs/decisions/README.md` index is updated.
 
