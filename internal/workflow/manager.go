@@ -31,6 +31,7 @@ type Manager struct {
 	watcher *fsnotify.Watcher
 	done    chan struct{}
 	stopped sync.Once
+	wg      sync.WaitGroup
 }
 
 // NewManager creates a [Manager] for the workflow file at path. It
@@ -131,6 +132,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	m.watcher = w
+	m.wg.Add(1)
 	go m.watch(ctx)
 	return nil
 }
@@ -139,9 +141,15 @@ func (m *Manager) Start(ctx context.Context) error {
 // goroutine to exit. Safe to call multiple times.
 func (m *Manager) Stop() {
 	m.stopped.Do(func() { close(m.done) })
+	m.wg.Wait()
 }
 
 func (m *Manager) watch(ctx context.Context) {
+	// wg.Done runs after watcher.Close (LIFO defer order), so by the
+	// time Stop()'s wg.Wait() returns the watcher is already closed.
+	// Ownership of m.watcher belongs exclusively to this goroutine from
+	// the moment Start() returns.
+	defer m.wg.Done()
 	defer m.watcher.Close() //nolint:errcheck // best-effort cleanup in defer
 
 	targetName := filepath.Base(m.path)
