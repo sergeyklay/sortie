@@ -124,7 +124,7 @@ No orchestration logic yet - just the storage primitives.
       WAL mode can be enabled, and exercises basic CRUD.
       **Verify:** test opens DB, creates a table, inserts a row, reads it back.
 
-- [ ] 2.2 Implement schema migration runner: numbered migrations applied in order, tracked in
+- [x] 2.2 Implement schema migration runner: numbered migrations applied in order, tracked in
       a `schema_migrations` table. Implement the initial migration that creates the four core
       tables from the architecture doc (Section 19.2): `retry_entries`, `run_history`,
       `session_metadata`, `aggregate_metrics`.

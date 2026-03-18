@@ -40,8 +40,11 @@ Chosen option: **SQLite in WAL mode**, because it provides durable state with ze
 dependencies while matching the orchestrator's single-writer pattern.
 
 SQLite in WAL mode provides concurrent reads with a single writer. The entire state lives
-in a single file alongside the binary. There is no external database to provision and no
-network dependency.
+in a single file scoped to the project directory (derived from the `WORKFLOW.md` location),
+not alongside the binary. The default path is `.sortie.db` in the same directory as the
+workflow file. This ensures per-project isolation (different projects never share state) and
+avoids permission errors when the binary is installed in a system directory like
+`/usr/local/bin/`. There is no external database to provision and no network dependency.
 
 Go has mature SQLite bindings: `modernc.org/sqlite` (pure Go, no CGo) provides full SQLite
 functionality without a C toolchain on the build host.
