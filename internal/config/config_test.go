@@ -210,6 +210,22 @@ func TestNewServiceConfig(t *testing.T) {
 		assertStringEqual(t, "Workspace.Root", "/tmp/my_workspaces", cfg.Workspace.Root)
 	})
 
+	t.Run("PathExpansion/TildeWithEnvVar", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Skip("cannot determine home directory")
+		}
+		t.Setenv("SORTIE_TEST_ENV", "staging")
+		cfg, err := NewServiceConfig(map[string]any{
+			"workspace": map[string]any{"root": "~/workspaces/$SORTIE_TEST_ENV"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(home, "workspaces", "staging")
+		assertStringEqual(t, "Workspace.Root", want, cfg.Workspace.Root)
+	})
+
 	t.Run("Coercion/StringToInt", func(t *testing.T) {
 		cfg, err := NewServiceConfig(map[string]any{
 			"polling": map[string]any{"interval_ms": "5000"},
