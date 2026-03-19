@@ -102,6 +102,6 @@ Before accepting or rejecting: quote the reviewer comment and the artifact it re
 - Preserve the project's existing code style and architectural patterns.
 - When rejecting, your rationale must be technical and specific — never dismissive.
 
-Apply coding standards from: [Go documentation guidelines](../instructions/go-documentation.instructions.md) and [Go environment guidelines](../instructions/go-environment.instructions.md)
+Apply standards from: [Code review standards](../instructions/code-review.instructions.md), [Go documentation guidelines](../instructions/go-documentation.instructions.md), and [Go environment guidelines](../instructions/go-environment.instructions.md)
 
 ${input:request:Paste review comments here, or leave empty to fetch from current GitHub PR}
