@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -416,5 +417,315 @@ func TestLoadRetryEntries_DeterministicTieBreak(t *testing.T) {
 		if entries[i].IssueID != want {
 			t.Errorf("entries[%d].IssueID = %q, want %q", i, entries[i].IssueID, want)
 		}
+	}
+}
+
+// --- Run History Tests ---
+
+// newTestRun returns a RunHistory with all fields populated using the given
+// index for uniqueness. Error is nil (successful run).
+func newTestRun(i int) RunHistory {
+	return RunHistory{
+		IssueID:      fmt.Sprintf("ISS-%d", i),
+		Identifier:   fmt.Sprintf("PROJ-%d", i),
+		Attempt:      i,
+		AgentAdapter: "mock",
+		Workspace:    fmt.Sprintf("/tmp/ws/PROJ-%d", i),
+		StartedAt:    fmt.Sprintf("2026-03-19T10:%02d:00Z", i),
+		CompletedAt:  fmt.Sprintf("2026-03-19T10:%02d:30Z", i),
+		Status:       "succeeded",
+	}
+}
+
+func appendOrFatal(t *testing.T, s *Store, run RunHistory) RunHistory {
+	t.Helper()
+	got, err := s.AppendRunHistory(context.Background(), run)
+	if err != nil {
+		t.Fatalf("AppendRunHistory: %v", err)
+	}
+	return got
+}
+
+func TestAppendRunHistory(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+
+	run := newTestRun(1)
+	got := appendOrFatal(t, s, run)
+
+	if got.ID <= 0 {
+		t.Fatalf("ID = %d, want > 0", got.ID)
+	}
+	if got.IssueID != run.IssueID {
+		t.Errorf("IssueID = %q, want %q", got.IssueID, run.IssueID)
+	}
+	if got.Identifier != run.Identifier {
+		t.Errorf("Identifier = %q, want %q", got.Identifier, run.Identifier)
+	}
+	if got.Attempt != run.Attempt {
+		t.Errorf("Attempt = %d, want %d", got.Attempt, run.Attempt)
+	}
+	if got.AgentAdapter != run.AgentAdapter {
+		t.Errorf("AgentAdapter = %q, want %q", got.AgentAdapter, run.AgentAdapter)
+	}
+	if got.Workspace != run.Workspace {
+		t.Errorf("Workspace = %q, want %q", got.Workspace, run.Workspace)
+	}
+	if got.StartedAt != run.StartedAt {
+		t.Errorf("StartedAt = %q, want %q", got.StartedAt, run.StartedAt)
+	}
+	if got.CompletedAt != run.CompletedAt {
+		t.Errorf("CompletedAt = %q, want %q", got.CompletedAt, run.CompletedAt)
+	}
+	if got.Status != run.Status {
+		t.Errorf("Status = %q, want %q", got.Status, run.Status)
+	}
+	if got.Error != nil {
+		t.Errorf("Error = %q, want nil", *got.Error)
+	}
+}
+
+func TestAppendRunHistory_WithError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	errMsg := "agent crashed"
+	run := newTestRun(1)
+	run.Status = "failed"
+	run.Error = &errMsg
+	appendOrFatal(t, s, run)
+
+	entries, err := s.QueryRunHistoryByIssue(ctx, run.IssueID)
+	if err != nil {
+		t.Fatalf("QueryRunHistoryByIssue: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.Error == nil {
+		t.Fatal("Error = nil, want non-nil")
+	}
+	if *got.Error != "agent crashed" {
+		t.Errorf("Error = %q, want %q", *got.Error, "agent crashed")
+	}
+	if got.Status != "failed" {
+		t.Errorf("Status = %q, want %q", got.Status, "failed")
+	}
+}
+
+func TestAppendRunHistory_NilError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	run := newTestRun(1)
+	appendOrFatal(t, s, run)
+
+	entries, err := s.QueryRunHistoryByIssue(ctx, run.IssueID)
+	if err != nil {
+		t.Fatalf("QueryRunHistoryByIssue: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].Error != nil {
+		t.Errorf("Error = %q, want nil", *entries[0].Error)
+	}
+}
+
+func TestAppendRunHistory_MultipleAppendsAutoIncrement(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+
+	var ids [3]int64
+	for i := range ids {
+		got := appendOrFatal(t, s, newTestRun(i+1))
+		ids[i] = got.ID
+	}
+
+	if ids[0] >= ids[1] || ids[1] >= ids[2] {
+		t.Fatalf("IDs not monotonically increasing: %v", ids)
+	}
+}
+
+func TestQueryRunHistoryByIssue(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// Insert runs for two different issues.
+	r1 := newTestRun(1)
+	r1.IssueID = "ISS-A"
+	r2 := newTestRun(2)
+	r2.IssueID = "ISS-A"
+	r3 := newTestRun(3)
+	r3.IssueID = "ISS-B"
+
+	a1 := appendOrFatal(t, s, r1)
+	a2 := appendOrFatal(t, s, r2)
+	appendOrFatal(t, s, r3)
+
+	entries, err := s.QueryRunHistoryByIssue(ctx, "ISS-A")
+	if err != nil {
+		t.Fatalf("QueryRunHistoryByIssue: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+	// Most recent first (descending id).
+	if entries[0].ID != a2.ID {
+		t.Errorf("entries[0].ID = %d, want %d", entries[0].ID, a2.ID)
+	}
+	if entries[1].ID != a1.ID {
+		t.Errorf("entries[1].ID = %d, want %d", entries[1].ID, a1.ID)
+	}
+}
+
+func TestQueryRunHistoryByIssue_Empty(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	entries, err := s.QueryRunHistoryByIssue(ctx, "no-such-issue")
+	if err != nil {
+		t.Fatalf("QueryRunHistoryByIssue: %v", err)
+	}
+	if entries == nil {
+		t.Fatal("returned nil slice, want non-nil empty slice")
+	}
+	if len(entries) != 0 {
+		t.Fatalf("got %d entries, want 0", len(entries))
+	}
+}
+
+func TestQueryRecentRunHistory_FirstPage(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	var allIDs [5]int64
+	for i := range allIDs {
+		got := appendOrFatal(t, s, newTestRun(i+1))
+		allIDs[i] = got.ID
+	}
+
+	entries, err := s.QueryRecentRunHistory(ctx, 3, 0)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+	// Most recent first: ids[4], ids[3], ids[2].
+	if entries[0].ID != allIDs[4] {
+		t.Errorf("entries[0].ID = %d, want %d", entries[0].ID, allIDs[4])
+	}
+	if entries[1].ID != allIDs[3] {
+		t.Errorf("entries[1].ID = %d, want %d", entries[1].ID, allIDs[3])
+	}
+	if entries[2].ID != allIDs[2] {
+		t.Errorf("entries[2].ID = %d, want %d", entries[2].ID, allIDs[2])
+	}
+}
+
+func TestQueryRecentRunHistory_Pagination(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	var allIDs [5]int64
+	for i := range allIDs {
+		got := appendOrFatal(t, s, newTestRun(i+1))
+		allIDs[i] = got.ID
+	}
+
+	// First page: 2 most recent.
+	page1, err := s.QueryRecentRunHistory(ctx, 2, 0)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory page1: %v", err)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("page1: got %d entries, want 2", len(page1))
+	}
+	if page1[0].ID != allIDs[4] || page1[1].ID != allIDs[3] {
+		t.Errorf("page1 IDs = [%d, %d], want [%d, %d]",
+			page1[0].ID, page1[1].ID, allIDs[4], allIDs[3])
+	}
+
+	// Second page: use smallest ID from page1 as cursor.
+	cursor := page1[len(page1)-1].ID
+	page2, err := s.QueryRecentRunHistory(ctx, 2, cursor)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory page2: %v", err)
+	}
+	if len(page2) != 2 {
+		t.Fatalf("page2: got %d entries, want 2", len(page2))
+	}
+	if page2[0].ID != allIDs[2] || page2[1].ID != allIDs[1] {
+		t.Errorf("page2 IDs = [%d, %d], want [%d, %d]",
+			page2[0].ID, page2[1].ID, allIDs[2], allIDs[1])
+	}
+
+	// Third page: one remaining.
+	cursor = page2[len(page2)-1].ID
+	page3, err := s.QueryRecentRunHistory(ctx, 2, cursor)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory page3: %v", err)
+	}
+	if len(page3) != 1 {
+		t.Fatalf("page3: got %d entries, want 1", len(page3))
+	}
+	if page3[0].ID != allIDs[0] {
+		t.Errorf("page3[0].ID = %d, want %d", page3[0].ID, allIDs[0])
+	}
+}
+
+func TestQueryRecentRunHistory_Empty(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	entries, err := s.QueryRecentRunHistory(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory: %v", err)
+	}
+	if entries == nil {
+		t.Fatal("returned nil slice, want non-nil empty slice")
+	}
+	if len(entries) != 0 {
+		t.Fatalf("got %d entries, want 0", len(entries))
+	}
+}
+
+func TestQueryRecentRunHistory_LimitExceedsRows(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	appendOrFatal(t, s, newTestRun(1))
+	appendOrFatal(t, s, newTestRun(2))
+
+	entries, err := s.QueryRecentRunHistory(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("QueryRecentRunHistory: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+}
+
+func TestAppendRunHistory_DBError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	_, err := s.AppendRunHistory(context.Background(), newTestRun(1))
+	if err == nil {
+		t.Fatal("expected error from AppendRunHistory on closed DB, got nil")
 	}
 }
