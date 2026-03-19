@@ -166,13 +166,13 @@ ability to talk to a tracker.
       **Verify:** unit test registers a mock adapter, retrieves it by kind, confirms unknown
       kind returns an error.
 
-- [ ] 3.3 Implement a file-based tracker adapter for development and testing. Reads issues
+- [x] 3.3 Implement a file-based tracker adapter for development and testing. Reads issues
       from a JSON or YAML file on disk. Supports all five adapter operations against the file
       contents. Register it in the adapter registry under kind `file`.
       **Verify:** unit tests with a fixture file containing sample issues. Tests cover
       candidate fetch, state refresh, terminal fetch, single issue fetch, comments.
 
-- [ ] 3.4 Research Jira REST API: authentication methods (API token, OAuth, PAT), relevant
+- [x] 3.4 Research Jira REST API: authentication methods (API token, OAuth, PAT), relevant
       endpoints (search, issue, comments, transitions), pagination model, rate limits.
       Document findings in a short `docs/jira-adapter-notes.md`.
       **Verify:** document exists with endpoint references and auth requirements.
