@@ -4,6 +4,23 @@ description: >
   Implement features, fix bugs, and write production code following
   architectural constraints. Use when asked to build, code, implement,
   develop a feature, execute a plan, or write production code.
+argument-hint: Specify the execution plan step or file to implement
+tools:
+  - execute
+  - read
+  - edit
+  - todo
+  - search
+handoffs:
+  - label: Verify Implementation
+    agent: Tester
+    prompt: |-
+      1. Study the initial spec and plan.
+      2. Investigate the actual implementation.
+      3. Determine what should be covered by tests.
+      4. Provide the necessary tests.
+      5. STRICTLY follow your instructions.
+---
 ---
 
 ## Role

@@ -4,6 +4,12 @@ description: >
   Generate and run tests following project conventions. Use when asked
   to test, write tests, add test coverage, create unit tests, integration
   tests, or verify implemented code.
+argument-hint: Specify the source code file or module to test
+tools:
+  - execute
+  - read
+  - edit
+  - search
 ---
 
 ## Role
