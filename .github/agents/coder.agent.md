@@ -104,7 +104,7 @@ You must analyze which file you are editing and apply the correct architectural 
 - **Naming:** Generic names in core (`agent_*`, `tracker_*`, `session_*`). Integration-specific names (`jira_*`, `claude_*`) only inside their adapter package.
 - **Typing:** No `interface{}` / `any` unless required for JSON unmarshalling. Prefer concrete types.
 - **Context:** All goroutines and subprocess calls must accept and propagate `context.Context` for cancellation.
-- **Documentation:** Go Documentation and Comments are specifically defined in `.claude/rules/go-documentation.md`. Follow those rules for all comments and doc strings.
+- **Documentation:** Go Documentation and Comments are specifically defined in [go-documentation.instructions.md](../instructions/go-documentation.instructions.md). Follow those rules for all comments and doc strings.
 - **Sacred Files:** Do NOT modify without explicit instruction:
   - `docs/architecture.md`
   - `docs/decisions/*.md` (accepted ADRs)
