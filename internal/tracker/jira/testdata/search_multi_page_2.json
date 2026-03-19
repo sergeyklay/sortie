@@ -1,0 +1,21 @@
+{
+  "issues": [
+    {
+      "id": "10004",
+      "key": "PROJ-4",
+      "fields": {
+        "summary": "Update documentation",
+        "status": { "name": "In Progress" },
+        "priority": { "id": "2" },
+        "labels": ["Docs"],
+        "assignee": null,
+        "issuetype": { "name": "Task" },
+        "parent": null,
+        "issuelinks": [],
+        "description": null,
+        "created": "2025-01-22T10:00:00.000+0000",
+        "updated": "2025-01-23T15:00:00.000+0000"
+      }
+    }
+  ]
+}
