@@ -17,6 +17,15 @@ type RetryEntry struct {
 	Error      *string // Last error message; nil when no error.
 }
 
+// PendingRetry pairs a persisted [RetryEntry] with the computed delay
+// remaining until its timer should fire. RemainingMs is zero when the entry's
+// due time has already passed, meaning the retry should fire immediately on
+// startup.
+type PendingRetry struct {
+	Entry       RetryEntry
+	RemainingMs int64 // max(entry.DueAtMs - nowMs, 0); always >= 0
+}
+
 // SaveRetryEntry persists a retry entry using upsert semantics. If an entry
 // with the same IssueID already exists, it is replaced entirely.
 func (s *Store) SaveRetryEntry(ctx context.Context, entry RetryEntry) error {
@@ -82,4 +91,26 @@ func (s *Store) DeleteRetryEntry(ctx context.Context, issueID string) error {
 		return fmt.Errorf("delete retry entry %q: %w", issueID, err)
 	}
 	return nil
+}
+
+// LoadRetryEntriesForRecovery loads all persisted retry entries and computes
+// the remaining delay for each relative to nowMs (Unix epoch milliseconds).
+// Entries whose due_at_ms has already passed get RemainingMs = 0, meaning the
+// retry should fire immediately. Results are ordered by due_at_ms ascending
+// then issue_id ascending (same order as [Store.LoadRetryEntries]).
+func (s *Store) LoadRetryEntriesForRecovery(ctx context.Context, nowMs int64) ([]PendingRetry, error) {
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load retry entries for recovery: %w", err)
+	}
+
+	result := make([]PendingRetry, len(entries))
+	for i, e := range entries {
+		remaining := e.DueAtMs - nowMs
+		if remaining < 0 {
+			remaining = 0
+		}
+		result[i] = PendingRetry{Entry: e, RemainingMs: remaining}
+	}
+	return result, nil
 }
