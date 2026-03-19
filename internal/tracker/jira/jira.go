@@ -299,7 +299,7 @@ func (a *JiraAdapter) fetchComments(ctx context.Context, issueID string) ([]doma
 
 		allComments = append(allComments, cr.Comments...)
 
-		if startAt+len(cr.Comments) >= cr.Total {
+		if len(cr.Comments) == 0 || startAt+len(cr.Comments) >= cr.Total {
 			break
 		}
 		startAt += len(cr.Comments)
