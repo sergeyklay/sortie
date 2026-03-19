@@ -11,7 +11,7 @@ business logic. Every subsequent task assumes this foundation exists.
 - [x] 0.1 Research Go project layout conventions (standard-layout, cmd/internal/pkg patterns)
       and select the structure for Sortie. Document the decision in a short comment in go.mod
       or a dedicated section in CONTRIBUTING.md.
-      **Verify:** `go build ./...` succeeds with an empty main package.
+      **Verify:** `make build` succeeds with an empty main package.
 
 - [x] 0.2 Initialize Go module (`go mod init`), create `cmd/sortie/main.go` with a minimal
       `main()` that prints version and exits. Set up the directory skeleton per the chosen
@@ -187,7 +187,7 @@ ability to talk to a tracker.
 - [ ] 3.6 Implement real Jira integration test (guarded by env var `SORTIE_JIRA_TEST=1` and
       credentials). Fetch real issues from a test project, confirm normalization produces valid
       Issue structs.
-      **Verify:** `SORTIE_JIRA_TEST=1 go test ./internal/tracker/jira/... -run Integration`
+      **Verify:** `SORTIE_JIRA_TEST=1 make test PKG=./internal/tracker/jira/... RUN=Integration`
       passes against a real Jira instance. Skipped cleanly when env var is absent.
 
 ## Milestone 4: Agent Adapter Interface and Claude Code Adapter
@@ -221,7 +221,7 @@ orchestration logic yet - just the ability to launch an agent, run a turn, and r
 - [ ] 4.5 Implement real Claude Code integration test (guarded by env var
       `SORTIE_CLAUDE_TEST=1`). Launch Claude Code with a trivial prompt in a temp workspace,
       confirm session starts, a turn completes, and events are received.
-      **Verify:** `SORTIE_CLAUDE_TEST=1 go test ./internal/agent/claude/... -run Integration`
+      **Verify:** `SORTIE_CLAUDE_TEST=1 make test PKG=./internal/agent/claude/... RUN=Integration`
       passes. Skipped cleanly when env var is absent.
 
 ## Milestone 5: Workspace Manager
