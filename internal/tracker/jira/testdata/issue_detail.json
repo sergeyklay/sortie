@@ -1,0 +1,67 @@
+{
+  "id": "10005",
+  "key": "PROJ-5",
+  "fields": {
+    "summary": "Refactor database layer",
+    "status": { "name": "In Progress" },
+    "priority": { "id": "2" },
+    "labels": ["Backend", "Database"],
+    "assignee": { "displayName": "Alice Smith" },
+    "issuetype": { "name": "Story" },
+    "parent": { "id": "10000", "key": "PROJ-0" },
+    "issuelinks": [
+      {
+        "type": { "name": "Blocks", "inward": "is blocked by" },
+        "inwardIssue": {
+          "id": "10020",
+          "key": "PROJ-20",
+          "fields": { "status": { "name": "To Do" } }
+        }
+      }
+    ],
+    "description": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "Refactor the persistence layer:" }
+          ]
+        },
+        {
+          "type": "bulletList",
+          "content": [
+            {
+              "type": "listItem",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [{ "type": "text", "text": "Extract interfaces" }]
+                }
+              ]
+            },
+            {
+              "type": "listItem",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    { "type": "text", "text": "Add connection pooling" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "codeBlock",
+          "attrs": { "language": "go" },
+          "content": [{ "type": "text", "text": "db.Close()" }]
+        }
+      ]
+    },
+    "created": "2025-01-25T08:30:00.000+0000",
+    "updated": "2025-01-26T16:00:00.000+0000"
+  }
+}

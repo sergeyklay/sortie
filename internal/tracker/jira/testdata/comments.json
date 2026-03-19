@@ -1,0 +1,41 @@
+{
+  "startAt": 0,
+  "maxResults": 50,
+  "total": 2,
+  "comments": [
+    {
+      "id": "20001",
+      "author": { "displayName": "Alice Smith" },
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "Looks good, please proceed." }
+            ]
+          }
+        ]
+      },
+      "created": "2025-01-16T10:00:00.000+0000"
+    },
+    {
+      "id": "20002",
+      "author": null,
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "Automated update: build passed." }
+            ]
+          }
+        ]
+      },
+      "created": "2025-01-16T12:00:00.000+0000"
+    }
+  ]
+}

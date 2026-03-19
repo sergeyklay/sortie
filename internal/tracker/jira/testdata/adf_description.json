@@ -1,0 +1,60 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "heading",
+      "attrs": { "level": 2 },
+      "content": [{ "type": "text", "text": "Overview" }]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "This is the " },
+        {
+          "type": "text",
+          "text": "main description",
+          "marks": [{ "type": "strong" }]
+        },
+        { "type": "text", "text": " of the task." }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Item one" }]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Item two" }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": { "language": "bash" },
+      "content": [{ "type": "text", "text": "echo hello" }]
+    },
+    {
+      "type": "unknownNode",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [{ "type": "text", "text": "Inside unknown" }]
+        }
+      ]
+    }
+  ]
+}

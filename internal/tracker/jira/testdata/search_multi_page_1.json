@@ -1,0 +1,33 @@
+{
+  "issues": [
+    {
+      "id": "10003",
+      "key": "PROJ-3",
+      "fields": {
+        "summary": "Add rate limiting",
+        "status": { "name": "To Do" },
+        "priority": { "id": "3" },
+        "labels": ["Backend"],
+        "assignee": { "displayName": "Bob Jones" },
+        "issuetype": { "name": "Task" },
+        "parent": null,
+        "issuelinks": [],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "text": "Add rate limiting to API" }
+              ]
+            }
+          ]
+        },
+        "created": "2025-01-20T08:00:00.000+0000",
+        "updated": "2025-01-21T12:00:00.000+0000"
+      }
+    }
+  ],
+  "nextPageToken": "cursor_abc"
+}
