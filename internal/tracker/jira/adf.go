@@ -34,32 +34,32 @@ var blockLevelTypes = map[string]bool{
 // Nil or non-map input returns an empty string. Trailing whitespace
 // is trimmed from the final result.
 func flattenADF(node any) string {
-	return strings.TrimRight(flattenADFNode(node), "\n ")
+	var b strings.Builder
+	flattenADFNode(&b, node)
+	return strings.TrimRight(b.String(), "\n ")
 }
 
-func flattenADFNode(node any) string {
+func flattenADFNode(b *strings.Builder, node any) {
 	m, ok := node.(map[string]any)
 	if !ok || m == nil {
-		return ""
+		return
 	}
 
 	nodeType, _ := m["type"].(string)
 
 	if nodeType == "text" {
 		text, _ := m["text"].(string)
-		return text
+		b.WriteString(text)
+		return
 	}
 
-	var result string
 	if content, ok := m["content"].([]any); ok {
 		for _, child := range content {
-			result += flattenADFNode(child)
+			flattenADFNode(b, child)
 		}
 	}
 
 	if blockLevelTypes[nodeType] {
-		result += "\n"
+		b.WriteByte('\n')
 	}
-
-	return result
 }

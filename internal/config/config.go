@@ -143,7 +143,7 @@ func buildTrackerConfig(m map[string]any) TrackerConfig {
 		// normalizes both sides to lowercase when comparing.
 		ActiveStates:   extractStringSlice(mapVal(m, "active_states")),
 		TerminalStates: extractStringSlice(mapVal(m, "terminal_states")),
-		QueryFilter:    extractString(m, "query_filter"),
+		QueryFilter:    resolveEnvRef(extractString(m, "query_filter")),
 	}
 }
 

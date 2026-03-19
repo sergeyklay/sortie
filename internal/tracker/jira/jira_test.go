@@ -111,6 +111,12 @@ func TestNewJiraAdapter(t *testing.T) {
 			wantErr:  true,
 			wantKind: domain.ErrMissingTrackerProject,
 		},
+		{
+			name:     "endpoint contains REST API path",
+			config:   map[string]any{"endpoint": "https://x.atlassian.net/rest/api/3", "api_key": "u@t.com:tok", "project": "P"},
+			wantErr:  true,
+			wantKind: domain.ErrTrackerPayload,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
