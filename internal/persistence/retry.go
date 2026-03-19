@@ -62,7 +62,8 @@ func (s *Store) LoadRetryEntries(ctx context.Context) ([]RetryEntry, error) {
 			return nil, fmt.Errorf("scan retry entry: %w", err)
 		}
 		if errVal.Valid {
-			e.Error = &errVal.String
+			s := errVal.String
+			e.Error = &s
 		}
 		entries = append(entries, e)
 	}
