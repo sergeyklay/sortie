@@ -131,10 +131,10 @@ No orchestration logic yet - just the storage primitives.
       **Verify:** unit test applies migrations to a fresh DB, confirms all tables exist with
       correct columns.
 
-- [ ] 2.3 Implement CRUD operations for `retry_entries`: save, load all, delete by issue_id.
+- [x] 2.3 Implement CRUD operations for `retry_entries`: save, load all, delete by issue_id.
       **Verify:** unit tests for save, load, delete, and idempotent save (upsert).
 
-- [ ] 2.4 Implement CRUD operations for `run_history`: append a completed run, query by
+- [x] 2.4 Implement CRUD operations for `run_history`: append a completed run, query by
       issue_id, query recent runs with pagination.
       **Verify:** unit tests for append, query by issue, and pagination.
 

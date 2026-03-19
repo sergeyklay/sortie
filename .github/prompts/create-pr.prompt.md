@@ -25,6 +25,25 @@ Commit staged changes and manage pull requests (PR).
 - When updating, verify the PR description still accurately reflects the changes
 - Use [Conventional Commits](https://www.conventionalcommits.org/) messages when appropriate
 
+## Template Enforcement
+
+**MANDATORY:** Before creating any PR:
+
+1. **Check for the PR template:** Use PR template provided by the `creating-pr` skill. You MUST follow it.
+2. **Read the template completely:** Read the entire template file to understand its structure
+3. **Follow the template exactly:** Structure the PR body to match the template's sections verbatim
+   - Use the template headings as-is (including emojis if present)
+   - Fill in each section following the guidance provided
+   - Do not skip sections or reorder them
+4. **DO NOT invent a custom format:** Deviation from it is a failure
+
+**Process:**
+- Search for template
+- Read template: `read_file` the template
+- Map changes to template sections
+- Create PR body matching template structure
+- Verify sections match before running `gh pr create`
+
 ## Constraints
 
 - Never force-push without explicit user confirmation.
