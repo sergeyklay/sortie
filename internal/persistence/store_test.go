@@ -316,3 +316,109 @@ func TestLoadRetryEntries_OrderByDueAtMs(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveRetryEntry_DBError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// Close the underlying DB to force an error on exec.
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	err := s.SaveRetryEntry(ctx, RetryEntry{
+		IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 1000,
+	})
+	if err == nil {
+		t.Fatal("expected error from SaveRetryEntry on closed DB, got nil")
+	}
+}
+
+func TestLoadRetryEntries_QueryError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// Close the underlying DB to force an error on query.
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	_, err := s.LoadRetryEntries(ctx)
+	if err == nil {
+		t.Fatal("expected error from LoadRetryEntries on closed DB, got nil")
+	}
+}
+
+func TestLoadRetryEntries_ScanError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// Insert a row with wrong column count by adding data directly to a
+	// corrupted schema. Drop and recreate retry_entries with fewer columns
+	// so the SELECT in LoadRetryEntries (which expects 5 columns) fails on Scan.
+	if _, err := s.db.ExecContext(ctx, `DROP TABLE retry_entries`); err != nil {
+		t.Fatalf("DROP TABLE: %v", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `CREATE TABLE retry_entries (issue_id TEXT PRIMARY KEY)`); err != nil {
+		t.Fatalf("CREATE TABLE: %v", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO retry_entries (issue_id) VALUES ('ISS-1')`); err != nil {
+		t.Fatalf("INSERT: %v", err)
+	}
+
+	_, err := s.LoadRetryEntries(ctx)
+	if err == nil {
+		t.Fatal("expected scan error from LoadRetryEntries, got nil")
+	}
+}
+
+func TestDeleteRetryEntry_DBError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// Close the underlying DB to force an error on exec.
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	err := s.DeleteRetryEntry(ctx, "ISS-1")
+	if err == nil {
+		t.Fatal("expected error from DeleteRetryEntry on closed DB, got nil")
+	}
+}
+
+func TestLoadRetryEntries_DeterministicTieBreak(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	// All entries share the same due_at_ms; order must be deterministic by issue_id.
+	for _, e := range []RetryEntry{
+		{IssueID: "C", Identifier: "PROJ-3", Attempt: 1, DueAtMs: 5000},
+		{IssueID: "A", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 5000},
+		{IssueID: "B", Identifier: "PROJ-2", Attempt: 1, DueAtMs: 5000},
+	} {
+		if err := s.SaveRetryEntry(ctx, e); err != nil {
+			t.Fatalf("SaveRetryEntry(%s): %v", e.IssueID, err)
+		}
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+
+	wantIDs := []string{"A", "B", "C"}
+	for i, want := range wantIDs {
+		if entries[i].IssueID != want {
+			t.Errorf("entries[%d].IssueID = %q, want %q", i, entries[i].IssueID, want)
+		}
+	}
+}
