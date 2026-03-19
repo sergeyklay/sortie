@@ -64,6 +64,12 @@ func NewJiraAdapter(config map[string]any) (domain.TrackerAdapter, error) {
 		}
 	}
 	endpoint = strings.TrimRight(endpoint, "/")
+	if strings.Contains(endpoint, "/rest/api/") {
+		return nil, &domain.TrackerError{
+			Kind:    domain.ErrTrackerPayload,
+			Message: `endpoint must be the Jira base URL without "/rest/api/..." path`,
+		}
+	}
 
 	apiKey, _ := config["api_key"].(string)
 	if apiKey == "" {
@@ -119,7 +125,7 @@ func (a *JiraAdapter) FetchCandidateIssues(ctx context.Context) ([]domain.Issue,
 // The issueID is the Jira issue key (e.g. "PROJ-123").
 func (a *JiraAdapter) FetchIssueByID(ctx context.Context, issueID string) (domain.Issue, error) {
 	params := url.Values{"fields": {searchFields}}
-	body, err := a.client.do(ctx, "GET", "/rest/api/3/issue/"+issueID, params)
+	body, err := a.client.do(ctx, "GET", "/rest/api/3/issue/"+url.PathEscape(issueID), params)
 	if err != nil {
 		if isNotFound(err) {
 			return domain.Issue{}, &domain.TrackerError{
@@ -271,7 +277,7 @@ func (a *JiraAdapter) fetchComments(ctx context.Context, issueID string) ([]doma
 			"startAt":    {fmt.Sprintf("%d", startAt)},
 		}
 
-		body, err := a.client.do(ctx, "GET", "/rest/api/3/issue/"+issueID+"/comment", params)
+		body, err := a.client.do(ctx, "GET", "/rest/api/3/issue/"+url.PathEscape(issueID)+"/comment", params)
 		if err != nil {
 			if isNotFound(err) {
 				return nil, &domain.TrackerError{
