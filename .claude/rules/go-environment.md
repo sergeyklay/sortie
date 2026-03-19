@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  - "Makefile"
+  - ".golangci.yml"
+  - ".github/workflows/*.yml"
+---
+
 # Go Environment
 
 Go is managed by asdf. The `go` binary resolves through `~/.asdf/shims/go`.
