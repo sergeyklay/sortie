@@ -138,11 +138,11 @@ No orchestration logic yet - just the storage primitives.
       issue_id, query recent runs with pagination.
       **Verify:** unit tests for append, query by issue, and pagination.
 
-- [ ] 2.5 Implement CRUD operations for `session_metadata` and `aggregate_metrics`: upsert
+- [x] 2.5 Implement CRUD operations for `session_metadata` and `aggregate_metrics`: upsert
       session metadata, read/write aggregate metrics (including `seconds_running`).
       **Verify:** unit tests for each operation.
 
-- [ ] 2.6 Implement startup recovery: load persisted retry entries, reconstruct timers from
+- [x] 2.6 Implement startup recovery: load persisted retry entries, reconstruct timers from
       `due_at_ms` timestamps, return a list of entries with computed remaining delays.
       **Verify:** unit test creates retry entries with past and future `due_at_ms`, confirms
       the loader returns correct remaining delays (past entries get delay 0).

@@ -1144,3 +1144,187 @@ func TestUpsertAggregateMetrics_SecondsRunningPrecision(t *testing.T) {
 		t.Errorf("SecondsRunning = %v, want %v (diff=%v)", got.SecondsRunning, want, math.Abs(got.SecondsRunning-want))
 	}
 }
+
+// --- Startup Recovery Tests ---
+
+func TestLoadRetryEntriesForRecovery_Empty(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	pending, err := s.LoadRetryEntriesForRecovery(ctx, 5000)
+	if err != nil {
+		t.Fatalf("LoadRetryEntriesForRecovery: %v", err)
+	}
+	if pending == nil {
+		t.Fatal("returned nil slice, want non-nil empty slice")
+	}
+	if len(pending) != 0 {
+		t.Fatalf("got %d entries, want 0", len(pending))
+	}
+}
+
+func TestLoadRetryEntriesForRecovery_FutureDueAt(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	for _, e := range []RetryEntry{
+		{IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 5000},
+		{IssueID: "ISS-2", Identifier: "PROJ-2", Attempt: 2, DueAtMs: 8000},
+	} {
+		if err := s.SaveRetryEntry(ctx, e); err != nil {
+			t.Fatalf("SaveRetryEntry(%s): %v", e.IssueID, err)
+		}
+	}
+
+	pending, err := s.LoadRetryEntriesForRecovery(ctx, 3000)
+	if err != nil {
+		t.Fatalf("LoadRetryEntriesForRecovery: %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("got %d entries, want 2", len(pending))
+	}
+	if pending[0].RemainingMs != 2000 {
+		t.Errorf("pending[0].RemainingMs = %d, want 2000", pending[0].RemainingMs)
+	}
+	if pending[1].RemainingMs != 5000 {
+		t.Errorf("pending[1].RemainingMs = %d, want 5000", pending[1].RemainingMs)
+	}
+}
+
+func TestLoadRetryEntriesForRecovery_PastDueAt(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	for _, e := range []RetryEntry{
+		{IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 1000},
+		{IssueID: "ISS-2", Identifier: "PROJ-2", Attempt: 2, DueAtMs: 2000},
+	} {
+		if err := s.SaveRetryEntry(ctx, e); err != nil {
+			t.Fatalf("SaveRetryEntry(%s): %v", e.IssueID, err)
+		}
+	}
+
+	pending, err := s.LoadRetryEntriesForRecovery(ctx, 5000)
+	if err != nil {
+		t.Fatalf("LoadRetryEntriesForRecovery: %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("got %d entries, want 2", len(pending))
+	}
+	for i, p := range pending {
+		if p.RemainingMs != 0 {
+			t.Errorf("pending[%d].RemainingMs = %d, want 0", i, p.RemainingMs)
+		}
+	}
+}
+
+func TestLoadRetryEntriesForRecovery_Mixed(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	for _, e := range []RetryEntry{
+		{IssueID: "ISS-1", Identifier: "PROJ-1", Attempt: 1, DueAtMs: 1000},
+		{IssueID: "ISS-2", Identifier: "PROJ-2", Attempt: 2, DueAtMs: 5000},
+		{IssueID: "ISS-3", Identifier: "PROJ-3", Attempt: 3, DueAtMs: 9000},
+	} {
+		if err := s.SaveRetryEntry(ctx, e); err != nil {
+			t.Fatalf("SaveRetryEntry(%s): %v", e.IssueID, err)
+		}
+	}
+
+	pending, err := s.LoadRetryEntriesForRecovery(ctx, 5000)
+	if err != nil {
+		t.Fatalf("LoadRetryEntriesForRecovery: %v", err)
+	}
+	if len(pending) != 3 {
+		t.Fatalf("got %d entries, want 3", len(pending))
+	}
+
+	// Past entry (DueAtMs=1000, nowMs=5000) → 0.
+	if pending[0].RemainingMs != 0 {
+		t.Errorf("pending[0].RemainingMs = %d, want 0", pending[0].RemainingMs)
+	}
+	// Exact-now entry (DueAtMs=5000, nowMs=5000) → 0.
+	if pending[1].RemainingMs != 0 {
+		t.Errorf("pending[1].RemainingMs = %d, want 0", pending[1].RemainingMs)
+	}
+	// Future entry (DueAtMs=9000, nowMs=5000) → 4000.
+	if pending[2].RemainingMs != 4000 {
+		t.Errorf("pending[2].RemainingMs = %d, want 4000", pending[2].RemainingMs)
+	}
+
+	// Ordering must be due_at_ms ascending.
+	wantDue := []int64{1000, 5000, 9000}
+	for i, want := range wantDue {
+		if pending[i].Entry.DueAtMs != want {
+			t.Errorf("pending[%d].Entry.DueAtMs = %d, want %d", i, pending[i].Entry.DueAtMs, want)
+		}
+	}
+}
+
+func TestLoadRetryEntriesForRecovery_PreservesEntryFields(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	errMsg := "agent timeout"
+	entry := RetryEntry{
+		IssueID:    "ISS-42",
+		Identifier: "PROJ-42",
+		Attempt:    3,
+		DueAtMs:    7500,
+		Error:      &errMsg,
+	}
+	if err := s.SaveRetryEntry(ctx, entry); err != nil {
+		t.Fatalf("SaveRetryEntry: %v", err)
+	}
+
+	pending, err := s.LoadRetryEntriesForRecovery(ctx, 5000)
+	if err != nil {
+		t.Fatalf("LoadRetryEntriesForRecovery: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("got %d entries, want 1", len(pending))
+	}
+
+	got := pending[0].Entry
+	if got.IssueID != "ISS-42" {
+		t.Errorf("IssueID = %q, want %q", got.IssueID, "ISS-42")
+	}
+	if got.Identifier != "PROJ-42" {
+		t.Errorf("Identifier = %q, want %q", got.Identifier, "PROJ-42")
+	}
+	if got.Attempt != 3 {
+		t.Errorf("Attempt = %d, want 3", got.Attempt)
+	}
+	if got.DueAtMs != 7500 {
+		t.Errorf("DueAtMs = %d, want 7500", got.DueAtMs)
+	}
+	if got.Error == nil {
+		t.Fatal("Error = nil, want non-nil")
+	}
+	if *got.Error != "agent timeout" {
+		t.Errorf("Error = %q, want %q", *got.Error, "agent timeout")
+	}
+	if pending[0].RemainingMs != 2500 {
+		t.Errorf("RemainingMs = %d, want 2500", pending[0].RemainingMs)
+	}
+}
+
+func TestLoadRetryEntriesForRecovery_DBError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	_, err := s.LoadRetryEntriesForRecovery(context.Background(), 5000)
+	if err == nil {
+		t.Fatal("expected error from LoadRetryEntriesForRecovery on closed DB, got nil")
+	}
+}
