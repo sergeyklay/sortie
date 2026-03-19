@@ -34,8 +34,7 @@ callback URL, which a headless background service cannot provide.
 PATs act as a secure alternative to Basic Auth passwords, behaving like bearer tokens.
 
 - Header: `Authorization: Bearer <your_pat>`
-- Primarily available in Jira Data Center and Server.
-- Recently introduced to certain Cloud contexts.
+- Available in Jira Data Center and Server.
 
 Relevant only if Sortie adds Data Center support in the future.
 
@@ -113,8 +112,8 @@ Request only `status` field to minimize payload. Used for active-run reconciliat
 Note: `id IN (...)` uses numeric internal IDs; `key IN (...)` uses project-prefixed keys.
 
 With many running issues (50+), the `key IN (...)` JQL in a GET URL may exceed URI length
-limits. If this becomes an issue, fall back to `POST /rest/api/3/search` with the JQL in
-the request body (offset-based pagination).
+limits. When this happens, split the keys into smaller batches and issue multiple
+`GET /rest/api/3/search` requests so each URL stays within safe limits.
 
 ### 5. `FetchIssueComments` → `GET /rest/api/3/issue/{issueIdOrKey}/comment`
 
@@ -230,12 +229,12 @@ ADF flattening gives the adapter full control over text extraction.
 - First request: omit `nextPageToken`, set `maxResults` (recommend `50`).
 - Subsequent requests: pass the `nextPageToken` from the previous response.
 - Stop when `nextPageToken` is absent from the response.
-- If the response indicates more results (e.g. `total > startAt + len(issues)`) but
-  `nextPageToken` is missing, raise `tracker_missing_end_cursor` rather than silently
-  treating pagination as complete.
+- If the response returns fewer results than `maxResults` but `nextPageToken` is missing
+  and there are signals of remaining data, raise `tracker_missing_end_cursor` rather than
+  silently treating pagination as complete.
 
-Note: `POST /rest/api/3/search` uses offset-based (`startAt`/`total`) but is deprecated.
-Use `GET` with cursor-based pagination.
+`POST /rest/api/3/search` uses offset-based (`startAt`/`total`) pagination but is
+deprecated for new integrations. Prefer `GET` with cursor-based pagination.
 
 ### Comment endpoint — offset-based
 
