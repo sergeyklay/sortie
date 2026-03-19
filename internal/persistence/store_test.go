@@ -716,6 +716,26 @@ func TestQueryRecentRunHistory_LimitExceedsRows(t *testing.T) {
 	}
 }
 
+func TestQueryRecentRunHistory_NonPositiveLimit(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	appendOrFatal(t, s, newTestRun(1))
+	appendOrFatal(t, s, newTestRun(2))
+	appendOrFatal(t, s, newTestRun(3))
+
+	for _, limit := range []int{0, -1, -100} {
+		entries, err := s.QueryRecentRunHistory(ctx, limit, 0)
+		if err != nil {
+			t.Fatalf("QueryRecentRunHistory(limit=%d): %v", limit, err)
+		}
+		if len(entries) != 1 {
+			t.Errorf("QueryRecentRunHistory(limit=%d): got %d entries, want 1", limit, len(entries))
+		}
+	}
+}
+
 func TestAppendRunHistory_DBError(t *testing.T) {
 	s := openTestStore(t)
 	migrateOrFatal(t, s)
