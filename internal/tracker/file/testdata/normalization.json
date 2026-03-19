@@ -1,0 +1,51 @@
+[
+  {
+    "id": "n1",
+    "identifier": "NORM-1",
+    "title": "Mixed-case labels",
+    "state": "Open",
+    "labels": ["BUG", "High-Priority"],
+    "priority": 1
+  },
+  {
+    "id": "n2",
+    "identifier": "NORM-2",
+    "title": "String priority",
+    "state": "Open",
+    "priority": "high"
+  },
+  {
+    "id": "n3",
+    "identifier": "NORM-3",
+    "title": "Float priority",
+    "state": "Open",
+    "priority": 2.5
+  },
+  {
+    "id": "n4",
+    "identifier": "NORM-4",
+    "title": "Boolean priority",
+    "state": "Open",
+    "priority": true
+  },
+  {
+    "id": "n5",
+    "identifier": "NORM-5",
+    "title": "Integer priority",
+    "state": "Open",
+    "priority": 1
+  },
+  {
+    "id": "n6",
+    "identifier": "NORM-6",
+    "title": "Null priority",
+    "state": "Open",
+    "priority": null
+  },
+  {
+    "id": "n7",
+    "identifier": "NORM-7",
+    "title": "Absent fields",
+    "state": "Open"
+  }
+]
