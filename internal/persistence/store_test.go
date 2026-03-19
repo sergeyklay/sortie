@@ -185,6 +185,50 @@ func TestSaveRetryEntry_Upsert(t *testing.T) {
 	}
 }
 
+func TestSaveRetryEntry_UpsertClearsError(t *testing.T) {
+	s := openTestStore(t)
+	migrateOrFatal(t, s)
+	ctx := context.Background()
+
+	errMsg := "something went wrong"
+	entry1 := RetryEntry{
+		IssueID:    "ISS-1",
+		Identifier: "PROJ-1",
+		Attempt:    1,
+		DueAtMs:    1000,
+		Error:      &errMsg,
+	}
+	if err := s.SaveRetryEntry(ctx, entry1); err != nil {
+		t.Fatalf("SaveRetryEntry (with error): %v", err)
+	}
+
+	entry2 := RetryEntry{
+		IssueID:    "ISS-1",
+		Identifier: "PROJ-1",
+		Attempt:    2,
+		DueAtMs:    2000,
+		Error:      nil,
+	}
+	if err := s.SaveRetryEntry(ctx, entry2); err != nil {
+		t.Fatalf("SaveRetryEntry (clear error): %v", err)
+	}
+
+	entries, err := s.LoadRetryEntries(ctx)
+	if err != nil {
+		t.Fatalf("LoadRetryEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.Attempt != 2 {
+		t.Errorf("Attempt = %d, want 2", got.Attempt)
+	}
+	if got.Error != nil {
+		t.Errorf("Error = %q, want nil", *got.Error)
+	}
+}
+
 func TestDeleteRetryEntry(t *testing.T) {
 	s := openTestStore(t)
 	migrateOrFatal(t, s)
