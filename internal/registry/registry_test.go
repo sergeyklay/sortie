@@ -243,3 +243,84 @@ func TestPackageLevelTrackers_Usable(t *testing.T) {
 		t.Fatal("Trackers.Kinds() returned nil, want non-nil slice")
 	}
 }
+
+// --- Agent adapter registry tests ---
+
+// Compile-time interface satisfaction check for agent mock.
+var _ domain.AgentAdapter = (*mockAgentAdapter)(nil)
+
+type mockAgentAdapter struct{}
+
+func (m *mockAgentAdapter) StartSession(_ context.Context, _ domain.StartSessionParams) (domain.Session, error) {
+	return domain.Session{}, nil
+}
+
+func (m *mockAgentAdapter) RunTurn(_ context.Context, _ domain.Session, _ domain.RunTurnParams) (domain.TurnResult, error) {
+	return domain.TurnResult{}, nil
+}
+
+func (m *mockAgentAdapter) StopSession(_ context.Context, _ domain.Session) error {
+	return nil
+}
+
+func (m *mockAgentAdapter) EventStream() <-chan domain.AgentEvent {
+	return nil
+}
+
+func TestAgentConstructor_Integration(t *testing.T) {
+	r := NewRegistry[AgentConstructor]("agent")
+	r.Register("mock", func(_ map[string]any) (domain.AgentAdapter, error) {
+		return &mockAgentAdapter{}, nil
+	})
+
+	constructor, err := r.Get("mock")
+	if err != nil {
+		t.Fatalf("Get(\"mock\") returned unexpected error: %v", err)
+	}
+
+	adapter, err := constructor(nil)
+	if err != nil {
+		t.Fatalf("constructor returned unexpected error: %v", err)
+	}
+
+	session, err := adapter.StartSession(context.Background(), domain.StartSessionParams{})
+	if err != nil {
+		t.Fatalf("StartSession returned unexpected error: %v", err)
+	}
+	if session.ID != "" {
+		t.Errorf("session.ID = %q, want empty string", session.ID)
+	}
+}
+
+func TestAgentConstructor_UnknownKind(t *testing.T) {
+	r := NewRegistry[AgentConstructor]("agent")
+	r.Register("mock", func(_ map[string]any) (domain.AgentAdapter, error) {
+		return &mockAgentAdapter{}, nil
+	})
+
+	_, err := r.Get("unknown")
+	if err == nil {
+		t.Fatal("Get(\"unknown\") returned nil error, want *RegistryError")
+	}
+
+	var re *RegistryError
+	if !errors.As(err, &re) {
+		t.Fatalf("error type = %T, want *RegistryError", err)
+	}
+	if re.Dimension != "agent" {
+		t.Errorf("Dimension = %q, want %q", re.Dimension, "agent")
+	}
+	if re.Kind != "unknown" {
+		t.Errorf("Kind = %q, want %q", re.Kind, "unknown")
+	}
+}
+
+func TestPackageLevelAgents_Usable(t *testing.T) {
+	if Agents == nil {
+		t.Fatal("Agents is nil")
+	}
+	kinds := Agents.Kinds()
+	if kinds == nil {
+		t.Fatal("Agents.Kinds() returned nil, want non-nil slice")
+	}
+}
