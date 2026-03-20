@@ -506,3 +506,9 @@ tooling.
       and configuration reference now that the software exists.
       **Verify:** a new user can follow the README to install and run Sortie against their
       own Jira project.
+
+- [ ] 10.9 Prepare 1.0.0 release: update CHANGELOG.md to replace the pre-1.0 notice with
+      standard Semantic Versioning adherence, remove the "not yet ready for use" note from
+      README.md, and tag the first stable release.
+      **Verify:** CHANGELOG.md references SemVer, README.md has no development-only
+      disclaimers, and the 1.0.0 release is published.

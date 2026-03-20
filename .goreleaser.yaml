@@ -52,34 +52,36 @@ changelog:
   use: git
   groups:
     - title: Features
-      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      regexp: '^.*?feat(\([^)]+\))??!?:.+$'
       order: 0
     - title: Bug Fixes
-      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      regexp: '^.*?fix(\([^)]+\))??!?:.+$'
       order: 1
     - title: Performance
-      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      regexp: '^.*?perf(\([^)]+\))??!?:.+$'
       order: 2
     - title: Others
       order: 999
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
-      - "^ci:"
-      - "^style:"
-      - "^refactor:"
+      - "(?i)docs[:(]"
+      - "(?i)test[:(]"
+      - "(?i)chore[:(]"
+      - "(?i)ci[:(]"
+      - "(?i)style[:(]"
+      - "(?i)refactor[:(]"
 
 release:
   github:
     owner: sortie-ai
     name: sortie
   name_template: "{{ .ProjectName }} {{ .Version }}"
-  header: |
-    ## What's Changed
   footer: |
-    **Full Changelog**: https://github.com/sortie-ai/sortie/compare/{{ .PreviousTag }}...{{ .Tag }}
+    ---
+
+    **Full changelog**: https://github.com/sortie-ai/sortie/blob/{{ .Tag }}/CHANGELOG.md
+
+    **Diff**: https://github.com/sortie-ai/sortie/compare/{{ .PreviousTag }}...{{ .Tag }}
   draft: false
   prerelease: auto
   make_latest: true
