@@ -229,7 +229,7 @@ orchestration logic yet - just the ability to launch an agent, run a turn, and r
 Workspace creation, reuse, path safety, and hook execution. No orchestration logic yet -
 just the ability to prepare and clean workspaces.
 
-- [ ] 5.1 Implement workspace path computation: sanitize issue identifier to workspace key,
+- [x] 5.1 Implement workspace path computation: sanitize issue identifier to workspace key,
       join with workspace root, validate containment (path must be under root, no symlink
       escape).
       **Verify:** unit tests cover sanitization, containment check, symlink rejection.
