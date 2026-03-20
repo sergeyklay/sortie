@@ -126,9 +126,47 @@ jobs:
       - name: Run integration tests
         run: go test -race -count=1 -v -run 'Integration' ./internal/tracker/jira/...
 
+  test-integration-claude:
+    name: Integration tests (Claude Code)
+    needs: [validate]
+    runs-on: ubuntu-latest
+    env:
+      SORTIE_CLAUDE_TEST: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Verify Claude Code secrets are configured
+        run: |
+          missing=()
+          [ -z "$ANTHROPIC_API_KEY" ] && missing+=("ANTHROPIC_API_KEY")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            echo "Configure these in Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "✓ All Claude Code secrets are present"
+
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run integration tests
+        run: go test -race -count=1 -v -timeout 300s -run 'Integration' ./internal/agent/claude/...
+
   release:
     name: Tag & Release
-    needs: [lint, test-unit, test-integration]
+    needs: [lint, test-unit, test-integration, test-integration-claude]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

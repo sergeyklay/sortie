@@ -218,7 +218,7 @@ orchestration logic yet - just the ability to launch an agent, run a turn, and r
       **Verify:** unit tests with captured Claude Code output fixtures. Tests cover event
       parsing, timeout handling, subprocess cleanup.
 
-- [ ] 4.5 Implement real Claude Code integration test (guarded by env var
+- [x] 4.5 Implement real Claude Code integration test (guarded by env var
       `SORTIE_CLAUDE_TEST=1`). Launch Claude Code with a trivial prompt in a temp workspace,
       confirm session starts, a turn completes, and events are received.
       **Verify:** `SORTIE_CLAUDE_TEST=1 make test PKG=./internal/agent/claude/... RUN=Integration`
