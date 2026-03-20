@@ -74,9 +74,14 @@ type PrepareResult struct {
 //   - before_run failure is fatal: returns error. The workspace
 //     directory is preserved (it may contain prior agent work).
 //
-// The context controls cancellation for both workspace operations and
-// hook execution.
+// The context controls cancellation for hook execution. If the context
+// is already cancelled when Prepare is called, it returns immediately
+// without touching the filesystem.
 func Prepare(ctx context.Context, params PrepareParams) (PrepareResult, error) {
+	if err := ctx.Err(); err != nil {
+		return PrepareResult{}, err
+	}
+
 	logger := params.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -100,7 +105,10 @@ func Prepare(ctx context.Context, params PrepareParams) (PrepareResult, error) {
 		if hookErr != nil {
 			logger.WarnContext(ctx, "after_create hook failed, rolling back workspace",
 				"workspace", result.Path, "error", hookErr)
-			os.RemoveAll(result.Path) //nolint:errcheck // best-effort rollback; directory may already be gone
+			if rmErr := os.RemoveAll(result.Path); rmErr != nil {
+				logger.ErrorContext(ctx, "workspace rollback failed after after_create hook error",
+					"workspace", result.Path, "rollback_error", rmErr)
+			}
 			return PrepareResult{}, hookErr
 		}
 	}
