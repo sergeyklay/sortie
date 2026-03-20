@@ -14,6 +14,7 @@ the service. Every entry must answer: "Does this change affect someone who
 installs, upgrades, configures, or integrates with Sortie?" If not, omit it.
 
 Authoritative references:
+
 - [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 - [Common Changelog](https://common-changelog.org/)
 - [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
@@ -60,40 +61,40 @@ Apply the following filter to every commit or change before writing an entry.
 
 **ALWAYS include:**
 
-| Signal | Why it matters to consumers |
-| --- | --- |
-| New user-facing feature (CLI flag, adapter, config option) | Operators discover new capabilities |
-| Changed behavior of existing feature | Operators must adjust usage |
-| Bug fix for incorrect behavior | Operators know issues are resolved |
-| Security or vulnerability fix | Operators must act on upgrades |
-| Deprecation of public interface | Operators prepare for removal |
-| Removal of feature or public interface | Operators must adapt before upgrading |
-| Performance improvement with measurable impact | Operators benefit from upgrading |
-| New or changed persistence schema (migration) | Operators plan upgrade procedures |
+| Signal                                                     | Why it matters to consumers           |
+| ---------------------------------------------------------- | ------------------------------------- |
+| New user-facing feature (CLI flag, adapter, config option) | Operators discover new capabilities   |
+| Changed behavior of existing feature                       | Operators must adjust usage           |
+| Bug fix for incorrect behavior                             | Operators know issues are resolved    |
+| Security or vulnerability fix                              | Operators must act on upgrades        |
+| Deprecation of public interface                            | Operators prepare for removal         |
+| Removal of feature or public interface                     | Operators must adapt before upgrading |
+| Performance improvement with measurable impact             | Operators benefit from upgrading      |
+| New or changed persistence schema (migration)              | Operators plan upgrade procedures     |
 
 **NEVER include — these are noise, not signal:**
 
-| Noise | Why it does not belong |
-| --- | --- |
-| Internal variable/function/type renames | No observable effect on consumers |
-| Code formatting, whitespace, linting fixes | No observable effect on consumers |
-| Test-only changes (new tests, test refactors) | Not shipped to consumers |
-| CI/CD pipeline changes (workflows, actions) | Not shipped to consumers |
-| Dotfile changes (`.gitignore`, `.github/*`, `CODEOWNERS`) | Not shipped to consumers |
-| Documentation-only changes (README, AGENTS.md, comments) | Not shipped to consumers |
-| Merge commits | Infrastructure artifact, not a change |
-| Internal refactoring with no behavior change | No observable effect on consumers |
-| Dev-only dependency bumps | Not shipped to consumers |
-| Project scaffolding and repo housekeeping | Not shipped to consumers |
+| Noise                                                     | Why it does not belong                |
+| --------------------------------------------------------- | ------------------------------------- |
+| Internal variable/function/type renames                   | No observable effect on consumers     |
+| Code formatting, whitespace, linting fixes                | No observable effect on consumers     |
+| Test-only changes (new tests, test refactors)             | Not shipped to consumers              |
+| CI/CD pipeline changes (workflows, actions)               | Not shipped to consumers              |
+| Dotfile changes (`.gitignore`, `.github/*`, `CODEOWNERS`) | Not shipped to consumers              |
+| Documentation-only changes (README, AGENTS.md, comments)  | Not shipped to consumers              |
+| Merge commits                                             | Infrastructure artifact, not a change |
+| Internal refactoring with no behavior change              | No observable effect on consumers     |
+| Dev-only dependency bumps                                 | Not shipped to consumers              |
+| Project scaffolding and repo housekeeping                 | Not shipped to consumers              |
 
 **Edge cases — include only when the threshold is met:**
 
-| Change | Include when... | Omit when... |
-| --- | --- | --- |
-| Dependency bump | Major version, security fix, or changed behavior | Routine patch/minor with no user impact |
-| Refactoring | It changes observable performance, error messages, or log output | Purely internal restructuring |
-| New internal module/package | It introduces a new adapter or public API surface | It reorganizes existing code |
-| ADR or architecture doc update | It records a decision that changes system behavior | It clarifies existing behavior |
+| Change                         | Include when...                                                  | Omit when...                            |
+| ------------------------------ | ---------------------------------------------------------------- | --------------------------------------- |
+| Dependency bump                | Major version, security fix, or changed behavior                 | Routine patch/minor with no user impact |
+| Refactoring                    | It changes observable performance, error messages, or log output | Purely internal restructuring           |
+| New internal module/package    | It introduces a new adapter or public API surface                | It reorganizes existing code            |
+| ADR or architecture doc update | It records a decision that changes system behavior               | It clarifies existing behavior          |
 
 When in doubt, ask: "If I were an operator reading this before upgrading, would
 I need to know this?" If the answer is no, leave it out.
@@ -102,16 +103,17 @@ I need to know this?" If the answer is no, leave it out.
 
 Place every surviving entry under exactly one category:
 
-| Category | When to use |
-| --- | --- |
-| **Added** | New user-facing capability: CLI command, adapter, config option, API surface |
-| **Changed** | Existing behavior altered in a way consumers can observe |
-| **Deprecated** | Still works but scheduled for removal in a future version |
-| **Removed** | Previously available feature or interface deleted |
-| **Fixed** | Bug fix — incorrect behavior corrected |
-| **Security** | Vulnerability patch, dependency CVE fix |
+| Category       | When to use                                                                  |
+| -------------- | ---------------------------------------------------------------------------- |
+| **Added**      | New user-facing capability: CLI command, adapter, config option, API surface |
+| **Changed**    | Existing behavior altered in a way consumers can observe                     |
+| **Deprecated** | Still works but scheduled for removal in a future version                    |
+| **Removed**    | Previously available feature or interface deleted                            |
+| **Fixed**      | Bug fix — incorrect behavior corrected                                       |
+| **Security**   | Vulnerability patch, dependency CVE fix                                      |
 
 Writing rules:
+
 - One bullet per logical change. Combine related sub-changes into one bullet.
 - Start each bullet with what changed, not with "Fixed" or "Added" (the heading
   already says that).
@@ -151,6 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ```
 
 Structural rules:
+
 - Reverse chronological order (newest first).
 - `[Unreleased]` section always present at the top.
 - Dates in ISO 8601 (`YYYY-MM-DD`).
@@ -161,13 +164,14 @@ Structural rules:
 
 When cutting a release, choose the version number:
 
-| Bump | Trigger |
-| --- | --- |
+| Bump      | Trigger                                               |
+| --------- | ----------------------------------------------------- |
 | **Major** | Breaking API/CLI change, removed public functionality |
-| **Minor** | New feature, backward-compatible behavior change |
-| **Patch** | Bug fix, security patch |
+| **Minor** | New feature, backward-compatible behavior change      |
+| **Patch** | Bug fix, security patch                               |
 
 To cut a release:
+
 1. Replace `## [Unreleased]` with `## [X.Y.Z] - YYYY-MM-DD`.
 2. Add a fresh empty `## [Unreleased]` section above it.
 3. Update the comparison links at the bottom.
@@ -184,10 +188,10 @@ To cut a release:
 
 ## Error Recovery
 
-| Problem | Fix |
-| --- | --- |
-| Missing comparison links | Reconstruct from `git tag --sort=-version:refname` |
-| Duplicate entries | Deduplicate, keep the more descriptive version |
-| Entry under wrong category | Move it; if ambiguous, prefer Changed over Added |
-| No tags in repository | Use commit SHAs in comparison links as a temporary measure |
-| Noise entry slipped in | Remove it — a leaner changelog is more trustworthy |
+| Problem                    | Fix                                                        |
+| -------------------------- | ---------------------------------------------------------- |
+| Missing comparison links   | Reconstruct from `git tag --sort=-version:refname`         |
+| Duplicate entries          | Deduplicate, keep the more descriptive version             |
+| Entry under wrong category | Move it; if ambiguous, prefer Changed over Added           |
+| No tags in repository      | Use commit SHAs in comparison links as a temporary measure |
+| Noise entry slipped in     | Remove it — a leaner changelog is more trustworthy         |
