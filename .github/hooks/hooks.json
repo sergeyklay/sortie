@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./scripts/hooks/makefile-only.sh",
+        "timeoutSec": 10,
+        "comment": "Enforce make targets instead of raw go commands"
+      },
+      {
+        "type": "command",
+        "bash": "./scripts/hooks/no-cgo.sh",
+        "timeoutSec": 10,
+        "comment": "Block CGo dependencies and mattn/go-sqlite3"
+      },
+      {
+        "type": "command",
+        "bash": "./scripts/hooks/block-secrets.sh",
+        "timeoutSec": 10,
+        "comment": "Block creation of .env, .pem, .key files and secrets/"
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "./scripts/hooks/check-layer-imports.sh",
+        "timeoutSec": 10,
+        "comment": "Warn about layer boundary violations in Go imports"
+      }
+    ]
+  }
+}
