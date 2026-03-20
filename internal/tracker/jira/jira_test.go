@@ -788,7 +788,7 @@ func TestAdapterLifecycle(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
-		case path == "/rest/api/3/search":
+		case path == "/rest/api/3/search/jql":
 			jql := r.URL.Query().Get("jql")
 			if strings.Contains(jql, "key IN") {
 				// FetchIssueStatesByIDs — return minimal status
