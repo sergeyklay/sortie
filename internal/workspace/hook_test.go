@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -309,6 +310,90 @@ func TestRunHook(t *testing.T) {
 		}
 		if !strings.Contains(result.Output, "2") {
 			t.Errorf("Output = %q, want it to contain %q", result.Output, "2")
+		}
+	})
+}
+
+// Section 15.3: restricted hook environment prevents secret leakage
+func TestRunHook_RestrictedEnv(t *testing.T) {
+	t.Run("excludes unrelated variables", func(t *testing.T) {
+		t.Setenv("TEST_SECRET_LEAK_CANARY", "s3cret_value_42")
+
+		result, err := RunHook(context.Background(), HookParams{
+			Script:    "env",
+			Dir:       t.TempDir(),
+			Env:       map[string]string{},
+			TimeoutMS: 5000,
+		})
+		if err != nil {
+			t.Fatalf("RunHook() error: %v", err)
+		}
+		if strings.Contains(result.Output, "TEST_SECRET_LEAK_CANARY") {
+			t.Error("hook env contains TEST_SECRET_LEAK_CANARY; want it excluded")
+		}
+		if !strings.Contains(result.Output, "PATH=") {
+			t.Error("hook env missing PATH; want it inherited")
+		}
+	})
+
+	t.Run("includes SORTIE_ from parent", func(t *testing.T) {
+		t.Setenv("SORTIE_CUSTOM_VAR", "fromparent")
+
+		result, err := RunHook(context.Background(), HookParams{
+			Script:    "echo $SORTIE_CUSTOM_VAR",
+			Dir:       t.TempDir(),
+			Env:       map[string]string{},
+			TimeoutMS: 5000,
+		})
+		if err != nil {
+			t.Fatalf("RunHook() error: %v", err)
+		}
+		if !strings.Contains(result.Output, "fromparent") {
+			t.Errorf("Output = %q, want it to contain %q", result.Output, "fromparent")
+		}
+	})
+
+	t.Run("params.Env overrides SORTIE_ from parent", func(t *testing.T) {
+		t.Setenv("SORTIE_ISSUE_ID", "parent_value")
+
+		result, err := RunHook(context.Background(), HookParams{
+			Script:    "echo $SORTIE_ISSUE_ID",
+			Dir:       t.TempDir(),
+			Env:       map[string]string{"SORTIE_ISSUE_ID": "override_value"},
+			TimeoutMS: 5000,
+		})
+		if err != nil {
+			t.Fatalf("RunHook() error: %v", err)
+		}
+		if !strings.Contains(result.Output, "override_value") {
+			t.Errorf("Output = %q, want it to contain %q", result.Output, "override_value")
+		}
+		if strings.Contains(result.Output, "parent_value") {
+			t.Error("Output contains parent_value; want override to win")
+		}
+	})
+
+	t.Run("HOME and SHELL are inherited", func(t *testing.T) {
+		wantHome := os.Getenv("HOME")
+		wantShell := os.Getenv("SHELL")
+		if wantHome == "" || wantShell == "" {
+			t.Skip("HOME or SHELL not set in parent environment")
+		}
+
+		result, err := RunHook(context.Background(), HookParams{
+			Script:    "echo HOME=$HOME; echo SHELL=$SHELL",
+			Dir:       t.TempDir(),
+			Env:       map[string]string{},
+			TimeoutMS: 5000,
+		})
+		if err != nil {
+			t.Fatalf("RunHook() error: %v", err)
+		}
+		if !strings.Contains(result.Output, "HOME="+wantHome) {
+			t.Errorf("Output = %q, want it to contain HOME=%s", result.Output, wantHome)
+		}
+		if !strings.Contains(result.Output, "SHELL="+wantShell) {
+			t.Errorf("Output = %q, want it to contain SHELL=%s", result.Output, wantShell)
 		}
 	})
 }

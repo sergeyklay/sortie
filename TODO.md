@@ -246,7 +246,7 @@ just the ability to prepare and clean workspaces.
       **Verify:** unit tests run a trivial hook script, confirm env vars are set, confirm
       timeout kills the hook, confirm output truncation.
 
-- [ ] 5.4 Restrict hook subprocess environment: inherit only `PATH`, `HOME`, `SHELL`, and
+- [x] 5.4 Restrict hook subprocess environment: inherit only `PATH`, `HOME`, `SHELL`, and
       `SORTIE_*` variables instead of the full parent process environment. This prevents
       accidental leakage of secrets (e.g., `JIRA_API_TOKEN`, cloud credentials) into hook
       scripts that may log or forward their environment.

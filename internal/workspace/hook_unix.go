@@ -13,14 +13,55 @@ import (
 	"time"
 )
 
+// allowedEnvKeys lists the parent-process environment variables that
+// hook subprocesses are permitted to inherit. All other variables are
+// stripped to prevent accidental leakage of secrets (e.g.,
+// JIRA_API_TOKEN, cloud credentials) into hook output.
+var allowedEnvKeys = map[string]bool{
+	"PATH":          true,
+	"HOME":          true,
+	"SHELL":         true,
+	"TMPDIR":        true,
+	"USER":          true,
+	"LOGNAME":       true,
+	"TERM":          true,
+	"LANG":          true,
+	"LC_ALL":        true,
+	"SSH_AUTH_SOCK": true,
+}
+
+// hookEnv builds a restricted environment for the hook subprocess.
+// Only variables in [allowedEnvKeys] and variables whose name starts
+// with "SORTIE_" are inherited from the parent process. Variables in
+// override take precedence over same-named parent variables.
+func hookEnv(override map[string]string) []string {
+	parent := os.Environ()
+	result := make([]string, 0, len(allowedEnvKeys)+len(override))
+	for _, entry := range parent {
+		k, _, _ := strings.Cut(entry, "=")
+		if !allowedEnvKeys[k] && !strings.HasPrefix(k, "SORTIE_") {
+			continue
+		}
+		if _, dup := override[k]; dup {
+			continue
+		}
+		result = append(result, entry)
+	}
+	for k, v := range override {
+		result = append(result, k+"="+v)
+	}
+	return result
+}
+
 // RunHook executes a shell hook script in the specified workspace
 // directory, enforcing a timeout and capturing output. The parent
 // context ctx allows the caller to cancel the hook independently of
 // the timeout (e.g., on graceful shutdown).
 //
-// The subprocess inherits the current process environment plus the
-// SORTIE_* variables from params.Env. Task 5.4 will restrict the
-// inherited environment; this function provides the injection point.
+// The subprocess receives a restricted environment: only standard
+// POSIX infrastructure variables and SORTIE_* variables are inherited
+// from the parent process. Variables in params.Env are merged last
+// and override any same-named parent variable.
 //
 // On success (exit code 0), returns a [HookResult] with truncated
 // output. On failure, returns a [*HookError] with Op indicating the
@@ -60,24 +101,7 @@ func RunHook(ctx context.Context, params HookParams) (HookResult, error) {
 	// the group signal before Go forcibly closes pipes.
 	cmd.WaitDelay = 3 * time.Second
 
-	env := os.Environ()
-	if len(params.Env) > 0 {
-		// Filter out existing entries for keys we are about to inject,
-		// ensuring the injected values always take effect regardless of
-		// OS/libc getenv duplicate-key behavior.
-		filtered := make([]string, 0, len(env)+len(params.Env))
-		for _, entry := range env {
-			k, _, _ := strings.Cut(entry, "=")
-			if _, dup := params.Env[k]; !dup {
-				filtered = append(filtered, entry)
-			}
-		}
-		for k, v := range params.Env {
-			filtered = append(filtered, k+"="+v)
-		}
-		env = filtered
-	}
-	cmd.Env = env
+	cmd.Env = hookEnv(params.Env)
 
 	buf := &limitedBuffer{max: MaxHookOutputBytes}
 	cmd.Stdout = buf
