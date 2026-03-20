@@ -1,6 +1,7 @@
 // Package registry provides typed adapter registries that map kind
 // strings to constructor functions. Start with [Trackers] for the
-// default tracker adapter registry.
+// default tracker adapter registry and [Agents] for the default agent
+// adapter registry.
 package registry
 
 import (
@@ -23,6 +24,18 @@ type TrackerConstructor func(config map[string]any) (domain.TrackerAdapter, erro
 // register themselves via [Registry.Register] in their init functions;
 // the orchestrator resolves adapters via [Registry.Get] at runtime.
 var Trackers = NewRegistry[TrackerConstructor]("tracker")
+
+// AgentConstructor creates a [domain.AgentAdapter] from opaque
+// adapter-specific configuration. The config parameter is the raw map
+// from the adapter's pass-through config sub-object. Implementations
+// must validate their config and return an error if required fields
+// are missing.
+type AgentConstructor func(config map[string]any) (domain.AgentAdapter, error)
+
+// Agents is the default agent adapter registry. Adapter packages
+// register themselves via [Registry.Register] in their init functions;
+// the orchestrator resolves adapters via [Registry.Get] at runtime.
+var Agents = NewRegistry[AgentConstructor]("agent")
 
 // Registry is a typed adapter registry mapping kind strings to
 // constructor functions. Safe for concurrent use; registrations are
