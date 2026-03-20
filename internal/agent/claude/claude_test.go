@@ -579,30 +579,29 @@ func TestStopSession_NilProc(t *testing.T) {
 // writeScript writes an executable shell script to the given directory and
 // returns the path. Used by RunTurn integration tests.
 //
-// To avoid the ETXTBSY race on Linux (the kernel may still hold a
-// write-back reference on an inode immediately after close), the
-// script is written to a temporary name and then renamed into place.
-// rename(2) atomically swaps the directory entry so exec never sees
-// a file that was recently opened for writing under that name.
+// The script is written from a child process to avoid the ETXTBSY race
+// on Linux (golang/go#22315). In a multithreaded process, fork()
+// duplicates all parent file descriptors into the child. If one
+// goroutine holds a write FD on a file while another goroutine forks
+// (for an unrelated exec), the forked child inherits that write FD.
+// Even after the parent closes the FD, the child retains its copy
+// until exec() closes CLOEXEC descriptors. Any attempt to exec the
+// written file during that window fails with ETXTBSY because the
+// kernel sees i_writecount > 0 on the inode.
+//
+// By delegating the write to a subprocess, the parent process never
+// opens a write FD on the executable, so no fork can leak one. This
+// eliminates the race at the root cause rather than mitigating it
+// with retries or timing workarounds.
 func writeScript(t *testing.T, dir, content string) string {
 	t.Helper()
-	finalPath := filepath.Join(dir, "fake-claude")
-	tmpPath := finalPath + ".tmp"
-	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		t.Fatal(err)
+	path := filepath.Join(dir, "fake-claude")
+	cmd := exec.Command("/bin/sh", "-c", `cat > "$1" && chmod 0755 "$1"`, "sh", path)
+	cmd.Stdin = strings.NewReader("#!/bin/sh\n" + content)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("writeScript: %v\n%s", err, out)
 	}
-	if _, err := f.WriteString("#!/bin/sh\n" + content); err != nil {
-		_ = f.Close()
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(tmpPath, finalPath); err != nil {
-		t.Fatal(err)
-	}
-	return finalPath
+	return path
 }
 
 // Section 10.1: RunTurn integration tests using fake subprocess scripts.
