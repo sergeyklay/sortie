@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -486,21 +487,47 @@ func TestEnsure(t *testing.T) {
 		}
 	})
 
-	t.Run("atomic CreatedNow correctness", func(t *testing.T) {
+	t.Run("concurrent Ensure yields exactly one CreatedNow", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		wsPath := filepath.Join(root, "PRE-1")
 
-		if err := os.Mkdir(wsPath, 0o750); err != nil {
-			t.Fatalf("setup: os.Mkdir: %v", err)
+		const goroutines = 10
+		results := make([]EnsureResult, goroutines)
+		errs := make([]error, goroutines)
+
+		var ready sync.WaitGroup
+		ready.Add(goroutines)
+		var start sync.WaitGroup
+		start.Add(1)
+		var done sync.WaitGroup
+		done.Add(goroutines)
+
+		for i := range goroutines {
+			go func(idx int) {
+				defer done.Done()
+				ready.Done()
+				start.Wait() // all goroutines launch together
+				results[idx], errs[idx] = Ensure(root, "RACE-1")
+			}(i)
 		}
 
-		res, err := Ensure(root, "PRE-1")
-		if err != nil {
-			t.Fatalf("Ensure(%q, %q) error: %v", root, "PRE-1", err)
+		ready.Wait() // wait for all goroutines to be ready
+		start.Done() // release them simultaneously
+		done.Wait()  // wait for all to finish
+
+		createdCount := 0
+		for i := range goroutines {
+			if errs[i] != nil {
+				t.Errorf("goroutine %d: unexpected error: %v", i, errs[i])
+				continue
+			}
+			if results[i].CreatedNow {
+				createdCount++
+			}
 		}
-		if res.CreatedNow {
-			t.Error("CreatedNow = true, want false — directory was pre-created externally")
+
+		if createdCount != 1 {
+			t.Errorf("CreatedNow=true count = %d, want exactly 1", createdCount)
 		}
 	})
 }
