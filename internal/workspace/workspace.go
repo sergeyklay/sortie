@@ -5,6 +5,8 @@ package workspace
 
 import (
 	"errors"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -86,8 +88,15 @@ func ComputePath(root, identifier string) (PathResult, error) {
 	// intended directory tree.
 	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return PathResult{}, &PathError{
+				Op:   "resolve",
+				Root: root,
+				Err:  err,
+			}
+		}
 		// Root does not exist yet — fall back to the cleaned absolute
-		// path. The root directory may be created later (task 5.2).
+		// path so callers can create the workspace root on demand.
 		resolvedRoot = filepath.Clean(absRoot)
 	}
 
@@ -97,12 +106,24 @@ func ComputePath(root, identifier string) (PathResult, error) {
 	// resolved_root. filepath.Rel handles edge cases like root="/"
 	// where a naive string prefix check would fail.
 	rel, err := filepath.Rel(resolvedRoot, workspacePath)
-	if err != nil || strings.HasPrefix(rel, "..") || rel == "." || strings.Contains(rel, string(filepath.Separator)) {
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == "." || strings.Contains(rel, string(filepath.Separator)) {
 		return PathResult{}, &PathError{
 			Op:         "containment",
 			Root:       root,
 			Identifier: identifier,
 			Err:        errors.New("workspace path is not under root"),
+		}
+	}
+
+	// If the workspace path already exists, reject symlinks to
+	// prevent an attacker-planted symlink from escaping the root.
+	fi, err := os.Lstat(workspacePath)
+	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return PathResult{}, &PathError{
+			Op:         "containment",
+			Root:       root,
+			Identifier: identifier,
+			Err:        errors.New("workspace path is a symlink"),
 		}
 	}
 
