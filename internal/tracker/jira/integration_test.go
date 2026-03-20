@@ -12,8 +12,8 @@ import (
 )
 
 // skipUnlessIntegration skips the current test when the SORTIE_JIRA_TEST
-// environment variable is not set to "1". Per architecture Section 17.8,
-// skipped integration tests are reported as skipped, not silently passed.
+// environment variable is not set to "1", so disabled integration tests are
+// reported as skipped rather than silently passing.
 func skipUnlessIntegration(t *testing.T) {
 	t.Helper()
 	if os.Getenv("SORTIE_JIRA_TEST") != "1" {
@@ -46,11 +46,17 @@ func integrationConfig(t *testing.T) map[string]any {
 
 	if states := os.Getenv("SORTIE_JIRA_ACTIVE_STATES"); states != "" {
 		parts := strings.Split(states, ",")
-		trimmed := make([]any, len(parts))
-		for i, s := range parts {
-			trimmed[i] = strings.TrimSpace(s)
+		trimmed := make([]any, 0, len(parts))
+		for _, s := range parts {
+			v := strings.TrimSpace(s)
+			if v == "" {
+				continue
+			}
+			trimmed = append(trimmed, v)
 		}
-		cfg["active_states"] = trimmed
+		if len(trimmed) > 0 {
+			cfg["active_states"] = trimmed
+		}
 	}
 	if qf := os.Getenv("SORTIE_JIRA_QUERY_FILTER"); qf != "" {
 		cfg["query_filter"] = qf
@@ -70,11 +76,17 @@ func integrationActiveStates(t *testing.T) []string {
 	t.Helper()
 	if states := os.Getenv("SORTIE_JIRA_ACTIVE_STATES"); states != "" {
 		parts := strings.Split(states, ",")
-		result := make([]string, len(parts))
-		for i, s := range parts {
-			result[i] = strings.TrimSpace(s)
+		result := make([]string, 0, len(parts))
+		for _, s := range parts {
+			v := strings.TrimSpace(s)
+			if v == "" {
+				continue
+			}
+			result = append(result, v)
 		}
-		return result
+		if len(result) > 0 {
+			return result
+		}
 	}
 	return defaultActiveStates
 }
@@ -103,8 +115,9 @@ func assertParsesTimestamp(t *testing.T, field, ts string) {
 	t.Errorf("%s = %q is not parseable as a known timestamp format", field, ts)
 }
 
-// assertValidIssue validates the normalization invariants from architecture
-// Sections 4.1.1 and 11.3 against a real Jira issue.
+// assertValidIssue validates that a normalized [domain.Issue] produced by the
+// Jira adapter satisfies the expected invariants for IDs, labels, timestamps,
+// relationships, and URLs.
 func assertValidIssue(t *testing.T, iss domain.Issue, endpoint string) {
 	t.Helper()
 
