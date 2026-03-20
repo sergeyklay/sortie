@@ -75,9 +75,10 @@ type TokenUsage struct {
 	TotalTokens int64
 }
 
-// AgentEvent is a normalized event emitted by an agent adapter during
-// a turn. The orchestrator uses these to update the live session
-// fields in the running map entry and accumulate token totals.
+// AgentEvent is a normalized event emitted by an agent adapter over the
+// lifetime of an agent session, including startup and individual turns.
+// The orchestrator uses these to update the live session fields in the
+// running map entry and accumulate token totals.
 type AgentEvent struct {
 	// Type is the normalized event category.
 	Type AgentEventType
