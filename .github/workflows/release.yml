@@ -1,12 +1,3 @@
-# Release Pipeline — test → tag → publish
-#
-# Manual workflow_dispatch trigger. Runs lint, unit tests, and Jira
-# integration tests in parallel. Creates an annotated tag and publishes
-# cross-platform binaries via GoReleaser only after all gates pass.
-#
-# Required secrets: SORTIE_JIRA_ENDPOINT, SORTIE_JIRA_API_KEY,
-# SORTIE_JIRA_PROJECT. See README or repo settings.
-
 name: Release
 
 on:
