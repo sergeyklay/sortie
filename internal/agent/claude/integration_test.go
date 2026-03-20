@@ -208,6 +208,7 @@ func TestIntegration_RunTurn(t *testing.T) {
 	}
 
 	assertContainsEventType(t, collected, domain.EventSessionStarted)
+	assertContainsEventType(t, collected, domain.EventTurnCompleted)
 	assertContainsEventType(t, collected, domain.EventTokenUsage)
 	assertNoEventType(t, collected, domain.EventTurnFailed)
 	assertNoEventType(t, collected, domain.EventStartupFailed)
