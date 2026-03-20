@@ -1,0 +1,181 @@
+# Release Pipeline — test → tag → publish
+#
+# Manual workflow_dispatch trigger. Runs lint, unit tests, and Jira
+# integration tests in parallel. Creates an annotated tag and publishes
+# cross-platform binaries via GoReleaser only after all gates pass.
+#
+# Required secrets: SORTIE_JIRA_ENDPOINT, SORTIE_JIRA_API_KEY,
+# SORTIE_JIRA_PROJECT. See README or repo settings.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (semver, e.g. 1.0.0 or 1.0.0-rc.1 — no 'v' prefix)"
+        required: true
+        type: string
+      dry_run:
+        description: "Dry run — run all steps but skip tag creation and release publish"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Only one release pipeline at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version format
+        run: |
+          VERSION='${{ inputs.version }}'
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
+            echo "::error::Invalid version format: '${VERSION}'. Expected semver (e.g. 1.0.0 or 1.0.0-rc.1)"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag does not already exist
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is new
+        run: |
+          TAG='${{ inputs.version }}'
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} already exists. Delete it first or choose a different version."
+            exit 1
+          fi
+          echo "✓ Tag ${TAG} is available"
+
+  lint:
+    name: Lint
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v9.2.0
+        with:
+          version: latest
+
+  test-unit:
+    name: Unit tests
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: go test -race -count=1 ./...
+
+  test-integration:
+    name: Integration tests (Jira)
+    needs: [validate]
+    runs-on: ubuntu-latest
+    env:
+      SORTIE_JIRA_TEST: "1"
+      SORTIE_JIRA_ENDPOINT: ${{ secrets.SORTIE_JIRA_ENDPOINT }}
+      SORTIE_JIRA_API_KEY: ${{ secrets.SORTIE_JIRA_API_KEY }}
+      SORTIE_JIRA_PROJECT: ${{ secrets.SORTIE_JIRA_PROJECT }}
+    steps:
+      - name: Verify Jira secrets are configured
+        run: |
+          missing=()
+          [ -z "$SORTIE_JIRA_ENDPOINT" ] && missing+=("SORTIE_JIRA_ENDPOINT")
+          [ -z "$SORTIE_JIRA_API_KEY" ]  && missing+=("SORTIE_JIRA_API_KEY")
+          [ -z "$SORTIE_JIRA_PROJECT" ]  && missing+=("SORTIE_JIRA_PROJECT")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            echo "Configure these in Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "✓ All Jira secrets are present"
+
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run integration tests
+        run: go test -race -count=1 -v -run 'Integration' ./internal/tracker/jira/...
+
+  release:
+    name: Tag & Release
+    needs: [lint, test-unit, test-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Create annotated tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          TAG='${{ inputs.version }}'
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release ${TAG}"
+          git push origin "$TAG"
+          echo "### Tagged \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release ${{ inputs.dry_run && '--skip=publish --skip=announce' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "### Release ${{ inputs.version }} published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Artifacts:**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_linux_amd64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_linux_arm64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_darwin_amd64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_darwin_arm64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_windows_amd64.zip\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`sortie_${{ inputs.version }}_windows_arm64.zip\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`checksums.txt\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "### Dry run complete for ${{ inputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "No tag was created and no release was published." >> "$GITHUB_STEP_SUMMARY"
