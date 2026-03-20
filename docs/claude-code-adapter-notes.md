@@ -118,13 +118,15 @@ are always set by the adapter; others are conditional.
 
 > **Security warning:** `--dangerously-skip-permissions` allows arbitrary command execution.
 > Per Anthropic's guidance, this should only be used in sandboxed environments without internet
-> access. Sortie's workspace isolation and hook system provide the containment boundary.
+> access, inside an externally enforced sandbox (for example a locked-down container or VM with
+> restricted filesystem and network access). Sortie's workspace isolation and hook system operate
+> inside that sandbox as additional defense-in-depth, but do not replace external isolation.
 
 ### Input flags
 
 | Flag                      | Description                                                              | Adapter usage                                                       |
 | ------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `--input-format <format>` | Input format (print mode only): `text` (default), `stream-json`.         | Optional. `stream-json` enables realtime streaming input via stdin. |
+| `--input-format <format>` | Input format (print mode only): `text` (default), `stream-json`.         | Optional. `stream-json` enables real-time streaming input via stdin. |
 | `--replay-user-messages`  | Re-emit user messages from stdin on stdout (requires `stream-json` I/O). | Optional. For bidirectional streaming protocols.                    |
 
 ### Config/settings flags
@@ -141,8 +143,12 @@ are always set by the adapter; others are conditional.
 Per architecture Section 10.7, the adapter launches:
 
 ```
-sh -c '<agent.command> -p "<prompt>" --output-format stream-json --verbose --dangerously-skip-permissions [--resume <session_id>]'
+sh -c '<agent.command> -p "$1" --output-format stream-json --verbose --dangerously-skip-permissions ${2:+--resume "$2"}' -- "$prompt" "$session_id"
 ```
+
+> **Shell safety:** The prompt must not be interpolated directly into the `sh -c` string.
+> Pass it as a positional parameter (`$1`) to avoid injection via shell metacharacters
+> in user-controlled issue content.
 
 ### Process settings
 
@@ -408,13 +414,26 @@ Architecture Section 10.2 defines the session lifecycle. Here is how Claude Code
 
 ### `StartSession`
 
+Architecture Sections 10.1 and 10.2 define `StartSession` as the operation that "launches or
+connects" to the agent. For Claude Code, the *session* is disk-persisted and identified by
+`--session-id`, while the OS subprocess is short-lived and created per turn. This adapter
+treats `StartSession` as establishing and validating the logical Claude Code session, while
+deferring creation of the Node.js subprocess until `RunTurn`.
+
 1. Record the workspace path and configuration.
-2. _Do not_ launch the subprocess yet. The subprocess is launched on the first `RunTurn` call
-   because Claude Code's `-p` flag combines "start" and "execute" into a single invocation.
-3. Optionally assign a deterministic session ID via `--session-id <uuid>`. This avoids
-   needing to parse the session ID from output before the second turn.
-4. Return a `Session` with the assigned or empty `ID` (populated after the first turn if not
-   pre-assigned) and adapter-internal state (workspace path, config snapshot).
+2. Perform preflight validation:
+   - Resolve and normalize the workspace path.
+   - Enforce workspace path containment rules.
+   - Validate that the Claude Code CLI command is resolvable on `$PATH`.
+3. Optionally assign a deterministic Claude Code session ID (for example a UUID) that will be
+   passed via `--session-id <uuid>` on the first `RunTurn`. This avoids needing to parse the
+   session ID from output before the second turn and makes retries idempotent.
+4. Initialize and return a `Session`:
+   - `ID`: the chosen session ID if pre-assigned, or empty (to be populated after the first
+     turn if Claude Code allocates it).
+   - `Internal`: adapter-internal state (workspace path, config snapshot, chosen session ID).
+   No OS subprocess is spawned at this point; that happens in `RunTurn` while resuming this
+   logical session.
 
 ### `RunTurn`
 
