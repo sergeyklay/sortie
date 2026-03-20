@@ -13,7 +13,7 @@ import (
 // inwardIssue produce a BlockerRef.
 const blockerLinkTypeName = "Blocks"
 
-// searchResponse represents GET /rest/api/3/search response.
+// searchResponse represents GET /rest/api/3/search/jql response.
 type searchResponse struct {
 	Issues        []jiraIssue `json:"issues"`
 	NextPageToken string      `json:"nextPageToken,omitempty"`

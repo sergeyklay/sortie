@@ -60,7 +60,7 @@ return `tracker_auth_error`.
 
 Each `TrackerAdapter` operation maps to a Jira REST v3 endpoint.
 
-### 1. `FetchCandidateIssues` → `GET /rest/api/3/search`
+### 1. `FetchCandidateIssues` → `GET /rest/api/3/search/jql`
 
 JQL:
 
@@ -76,10 +76,10 @@ Request only needed fields:
 
 Does **not** request `comment` (separate call; comments use a dedicated endpoint).
 
-Note: `POST /rest/api/3/search` also accepts JQL in the request body and avoids URI length
-limits for very long queries. However, POST uses offset-based pagination and Atlassian
-recommends the GET endpoint with cursor-based pagination. Sortie's JQL queries are short
-enough for GET.
+Note: `POST /rest/api/3/search/jql` also accepts JQL in the request body and avoids URI
+length limits for very long queries. However, POST uses offset-based pagination and
+Atlassian recommends the GET endpoint with cursor-based pagination. Sortie's JQL queries
+are short enough for GET.
 
 ### 2. `FetchIssueByID` → `GET /rest/api/3/issue/{issueIdOrKey}`
 
@@ -88,7 +88,7 @@ Query param `fields` to select specific fields. Returns a single issue with full
 The `description` field uses **ADF** (Atlassian Document Format), a JSON tree, not plain text.
 Must be flattened (see ADF section below).
 
-### 3. `FetchIssuesByStates` → `GET /rest/api/3/search`
+### 3. `FetchIssuesByStates` → `GET /rest/api/3/search/jql`
 
 JQL:
 
@@ -99,7 +99,7 @@ project = "<KEY>" AND status IN ("<state1>", ...) ORDER BY created ASC
 Same endpoint as candidate fetch, different JQL. Used for startup terminal cleanup.
 Paginate to fetch all matching issues.
 
-### 4. `FetchIssueStatesByIDs` → `GET /rest/api/3/search`
+### 4. `FetchIssueStatesByIDs` → `GET /rest/api/3/search/jql`
 
 JQL:
 
@@ -113,7 +113,7 @@ Note: `id IN (...)` uses numeric internal IDs; `key IN (...)` uses project-prefi
 
 With many running issues (50+), the `key IN (...)` JQL in a GET URL may exceed URI length
 limits. When this happens, split the keys into smaller batches and issue multiple
-`GET /rest/api/3/search` requests so each URL stays within safe limits.
+`GET /rest/api/3/search/jql` requests so each URL stays within safe limits.
 
 ### 5. `FetchIssueComments` → `GET /rest/api/3/issue/{issueIdOrKey}/comment`
 
@@ -226,7 +226,7 @@ ADF flattening gives the adapter full control over text extraction.
 
 ## Pagination
 
-### Search endpoint (`GET /rest/api/3/search`), cursor-based
+### Search endpoint (`GET /rest/api/3/search/jql`), cursor-based
 
 - First request: omit `nextPageToken`, set `maxResults` (recommend `50`).
 - Subsequent requests: pass the `nextPageToken` from the previous response.
@@ -235,7 +235,7 @@ ADF flattening gives the adapter full control over text extraction.
   and there are signals of remaining data, raise `tracker_missing_end_cursor` rather than
   silently treating pagination as complete.
 
-`POST /rest/api/3/search` uses offset-based (`startAt`/`total`) pagination but is
+`POST /rest/api/3/search/jql` uses offset-based (`startAt`/`total`) pagination but is
 deprecated for new integrations. Prefer `GET` with cursor-based pagination.
 
 ### Comment endpoint, offset-based
@@ -260,7 +260,7 @@ Jira Cloud enforces three independent rate limiting systems:
 - Token bucket algorithm per endpoint per tenant.
 - Defaults: GET 100 req/s, POST 100 req/s, PUT 50 req/s, DELETE 50 req/s.
 - `GET /rest/api/3/issue/{id}`: 150 req/s burst bucket.
-- `GET /rest/api/3/search`: 100 req/s.
+- `GET /rest/api/3/search/jql`: 100 req/s.
 
 ### 3. Per-issue write limits
 

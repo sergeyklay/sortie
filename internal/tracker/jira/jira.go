@@ -228,7 +228,7 @@ func (a *JiraAdapter) paginatedSearch(ctx context.Context, jql, fields string) (
 			params.Set("nextPageToken", nextPageToken)
 		}
 
-		body, err := a.client.do(ctx, "GET", "/rest/api/3/search", params)
+		body, err := a.client.do(ctx, "GET", "/rest/api/3/search/jql", params)
 		if err != nil {
 			return nil, err
 		}
