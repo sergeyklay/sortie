@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -357,6 +358,9 @@ func TestRunWorkerAttempt(t *testing.T) {
 		if result.WorkspacePath == "" {
 			t.Error("WorkspacePath is empty, want non-empty")
 		}
+		if result.SessionID != "sess-1" {
+			t.Errorf("SessionID = %q, want %q", result.SessionID, "sess-1")
+		}
 		if got := eventCount.Load(); got < 3 {
 			t.Errorf("OnEvent relay count = %d, want >= 3", got)
 		}
@@ -583,6 +587,9 @@ func TestRunWorkerAttempt(t *testing.T) {
 		if !strings.Contains(result.Error.Error(), "workspace preparation") {
 			t.Errorf("Error = %q, want to contain %q", result.Error, "workspace preparation")
 		}
+		if result.SessionID != "" {
+			t.Errorf("SessionID = %q, want empty (no session started)", result.SessionID)
+		}
 		if startCalled.Load() {
 			t.Error("StartSession was called, want no call on workspace failure")
 		}
@@ -623,6 +630,9 @@ func TestRunWorkerAttempt(t *testing.T) {
 		}
 		if result.WorkspacePath == "" {
 			t.Error("WorkspacePath is empty, want non-empty (workspace was prepared)")
+		}
+		if result.SessionID != "" {
+			t.Errorf("SessionID = %q, want empty (StartSession failed)", result.SessionID)
 		}
 	})
 
@@ -869,6 +879,12 @@ func TestRunWorkerAttempt(t *testing.T) {
 		if !strings.Contains(result.Error.Error(), "unexpected agent crash") {
 			t.Errorf("Error = %q, want to contain panic value %q", result.Error, "unexpected agent crash")
 		}
+		if result.WorkspacePath == "" {
+			t.Error("WorkspacePath is empty, want non-empty (workspace was prepared before panic)")
+		}
+		if result.SessionID != "sess-1" {
+			t.Errorf("SessionID = %q, want %q (session started before panic)", result.SessionID, "sess-1")
+		}
 		if ec.count() != 1 {
 			t.Errorf("OnExit call count = %d, want 1", ec.count())
 		}
@@ -936,6 +952,91 @@ func TestRunWorkerAttempt(t *testing.T) {
 		}
 		if result.Identifier != issue.Identifier {
 			t.Errorf("Identifier = %q, want %q", result.Identifier, issue.Identifier)
+		}
+	})
+
+	t.Run("resume_session_id_passed_through", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cfg := defaultWorkerConfig(tmpDir)
+		cfg.Agent.MaxTurns = 1
+
+		ec := newExitCapture()
+		var capturedResumeID atomic.Value
+
+		deps := WorkerDeps{
+			TrackerAdapter: &mockTrackerAdapter{},
+			AgentAdapter: &mockAgentAdapter{
+				startSessionFn: func(_ context.Context, params domain.StartSessionParams) (domain.Session, error) {
+					capturedResumeID.Store(params.ResumeSessionID)
+					return domain.Session{ID: "sess-resumed"}, nil
+				},
+			},
+			ConfigFunc:         func() config.ServiceConfig { return cfg },
+			PromptTemplateFunc: func() *prompt.Template { return mustParseTemplate(t, "{{ .issue.title }}") },
+			OnEvent:            func(_ string, _ domain.AgentEvent) {},
+			OnExit:             ec.onExit,
+			ResumeSessionID:    "prev-sess-123",
+			Logger:             discardLogger(),
+		}
+
+		RunWorkerAttempt(context.Background(), workerTestIssue(), nil, deps)
+
+		result := ec.waitResult(t)
+		if result.ExitKind != WorkerExitNormal {
+			t.Fatalf("ExitKind = %q, want %q", result.ExitKind, WorkerExitNormal)
+		}
+
+		got, ok := capturedResumeID.Load().(string)
+		if !ok {
+			t.Fatal("StartSession was never called")
+		}
+		if got != "prev-sess-123" {
+			t.Errorf("ResumeSessionID = %q, want %q", got, "prev-sess-123")
+		}
+		if result.SessionID != "sess-resumed" {
+			t.Errorf("result.SessionID = %q, want %q", result.SessionID, "sess-resumed")
+		}
+	})
+
+	t.Run("panic_after_workspace_calls_finish", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		markerPath := filepath.Join(tmpDir, "after_run_marker")
+
+		cfg := defaultWorkerConfig(tmpDir)
+		cfg.Agent.MaxTurns = 5
+		// Hook writes a marker file; workspace.Finish calls this.
+		cfg.Hooks.AfterRun = fmt.Sprintf("touch %s", markerPath)
+
+		ec := newExitCapture()
+
+		deps := WorkerDeps{
+			TrackerAdapter: &mockTrackerAdapter{},
+			AgentAdapter: &mockAgentAdapter{
+				runTurnFn: func(_ context.Context, _ domain.Session, _ domain.RunTurnParams) (domain.TurnResult, error) {
+					panic("crash after session")
+				},
+			},
+			ConfigFunc:         func() config.ServiceConfig { return cfg },
+			PromptTemplateFunc: func() *prompt.Template { return mustParseTemplate(t, "{{ .issue.title }}") },
+			OnEvent:            func(_ string, _ domain.AgentEvent) {},
+			OnExit:             ec.onExit,
+			Logger:             discardLogger(),
+		}
+
+		RunWorkerAttempt(context.Background(), workerTestIssue(), nil, deps)
+
+		result := ec.waitResult(t)
+		if result.ExitKind != WorkerExitError {
+			t.Fatalf("ExitKind = %q, want %q", result.ExitKind, WorkerExitError)
+		}
+
+		// Verify after_run hook was executed during panic recovery.
+		if _, err := os.Stat(markerPath); err != nil {
+			t.Errorf("after_run marker file not found: %v (workspace.Finish not called during panic recovery)", err)
 		}
 	})
 }

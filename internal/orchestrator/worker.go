@@ -52,6 +52,12 @@ type WorkerResult struct {
 	// (received a TurnResult) before the worker exited.
 	TurnsCompleted int
 
+	// SessionID is the adapter-assigned session identifier. Empty if
+	// the worker exited before starting a session. The exit handler
+	// uses this to populate RunningEntry.SessionID and to enable
+	// session continuity on continuation retries.
+	SessionID string
+
 	// WorkspacePath is the workspace directory used for this attempt.
 	// Empty if workspace preparation failed.
 	WorkspacePath string
@@ -97,6 +103,12 @@ type WorkerDeps struct {
 	// returns. Must be safe for concurrent use.
 	OnExit func(issueID string, result WorkerResult)
 
+	// ResumeSessionID is the session ID from a previous worker attempt
+	// for the same issue. Non-empty on continuation retries so the
+	// agent adapter can resume the conversation. The orchestrator
+	// populates this from the previous RunningEntry.SessionID.
+	ResumeSessionID string
+
 	// Logger is the structured logger with issue-scoped context fields
 	// already attached (issue_id, issue_identifier).
 	Logger *slog.Logger
@@ -132,6 +144,9 @@ func isTurnSuccess(reason domain.AgentEventType) bool {
 
 // toDomainAgentConfig converts a config-layer AgentConfig to the
 // domain-layer AgentConfig expected by agent adapters.
+//
+// Update this function when adding fields to config.AgentConfig or
+// domain.AgentConfig.
 func toDomainAgentConfig(c config.AgentConfig) domain.AgentConfig {
 	return domain.AgentConfig{
 		Kind:           c.Kind,
@@ -194,16 +209,33 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 	// panic recovery checks this to avoid double-reporting.
 	reported := false
 
+	// Pre-declared so the panic recovery defer can access them.
+	var workspacePath string
+	var sessionID string
+
 	defer func() {
 		if r := recover(); r != nil {
+			if workspacePath != "" {
+				workspace.Finish(ctx, workspace.FinishParams{
+					Path:          workspacePath,
+					Identifier:    issue.Identifier,
+					IssueID:       issue.ID,
+					Attempt:       attemptInt,
+					AfterRun:      cfg.Hooks.AfterRun,
+					HookTimeoutMS: cfg.Hooks.TimeoutMS,
+					Logger:        logger,
+				})
+			}
 			if !reported {
 				deps.OnExit(issue.ID, WorkerResult{
-					IssueID:      issue.ID,
-					Identifier:   issue.Identifier,
-					ExitKind:     WorkerExitError,
-					Error:        fmt.Errorf("worker panic: %v", r),
-					AgentAdapter: cfg.Agent.Kind,
-					Attempt:      attempt,
+					IssueID:       issue.ID,
+					Identifier:    issue.Identifier,
+					ExitKind:      WorkerExitError,
+					Error:         fmt.Errorf("worker panic: %v", r),
+					SessionID:     sessionID,
+					WorkspacePath: workspacePath,
+					AgentAdapter:  cfg.Agent.Kind,
+					Attempt:       attempt,
 				})
 			}
 		}
@@ -233,6 +265,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 		return
 	}
 
+	workspacePath = wsResult.Path
 	logger.Info("workspace prepared", "workspace", wsResult.Path)
 
 	// finishWorkspace is a helper that runs the after_run hook
@@ -269,7 +302,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 	session, err := deps.AgentAdapter.StartSession(ctx, domain.StartSessionParams{
 		WorkspacePath:   wsResult.Path,
 		AgentConfig:     toDomainAgentConfig(cfg.Agent),
-		ResumeSessionID: "",
+		ResumeSessionID: deps.ResumeSessionID,
 	})
 	if err != nil {
 		finishWorkspace()
@@ -286,6 +319,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 		return
 	}
 
+	sessionID = session.ID
 	logger.Info("agent session started", "session_id", session.ID)
 
 	// Phase 3: Multi-Turn Loop.
@@ -308,6 +342,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 				ExitKind:       exitKindForErr(ctx),
 				Error:          fmt.Errorf("prompt render (turn %d): %w", turnNumber, err),
 				TurnsCompleted: turnsCompleted,
+				SessionID:      session.ID,
 				WorkspacePath:  wsResult.Path,
 				AgentAdapter:   cfg.Agent.Kind,
 				Attempt:        attempt,
@@ -335,6 +370,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 				ExitKind:       exitKindForErr(ctx),
 				Error:          fmt.Errorf("agent turn %d: %w", turnNumber, err),
 				TurnsCompleted: turnsCompleted,
+				SessionID:      session.ID,
 				WorkspacePath:  wsResult.Path,
 				AgentAdapter:   cfg.Agent.Kind,
 				Attempt:        attempt,
@@ -361,6 +397,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 				ExitKind:       exitKind,
 				Error:          fmt.Errorf("agent turn %d ended: %s", turnNumber, turnResult.ExitReason),
 				TurnsCompleted: turnsCompleted,
+				SessionID:      session.ID,
 				WorkspacePath:  wsResult.Path,
 				AgentAdapter:   cfg.Agent.Kind,
 				Attempt:        attempt,
@@ -380,6 +417,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 				ExitKind:       exitKindForErr(ctx),
 				Error:          fmt.Errorf("issue state refresh (turn %d): %w", turnNumber, err),
 				TurnsCompleted: turnsCompleted,
+				SessionID:      session.ID,
 				WorkspacePath:  wsResult.Path,
 				AgentAdapter:   cfg.Agent.Kind,
 				Attempt:        attempt,
@@ -419,6 +457,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 		Identifier:     issue.Identifier,
 		ExitKind:       WorkerExitNormal,
 		TurnsCompleted: turnsCompleted,
+		SessionID:      session.ID,
 		WorkspacePath:  wsResult.Path,
 		AgentAdapter:   cfg.Agent.Kind,
 		Attempt:        attempt,
