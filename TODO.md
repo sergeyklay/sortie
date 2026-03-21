@@ -282,7 +282,7 @@ component. Uses mock adapters for tracker and agent - no real external calls.
       **Verify:** unit tests with various issue sets confirm correct sort order and
       eligibility filtering.
 
-- [ ] 6.3 Implement the dispatch function (Section 16.4): claim issue, spawn worker goroutine,
+- [x] 6.3 Implement the dispatch function (Section 16.4): claim issue, spawn worker goroutine,
       add to running map with initial session fields (all token counters at zero, timestamps,
       retry_attempt). Handle spawn failure by scheduling retry. Clear any existing retry entry
       for the issue on successful spawn.
