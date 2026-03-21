@@ -190,6 +190,9 @@ func (k AgentErrorKind) RetryClassification() RetryClassification {
 	switch k {
 	case ErrAgentNotFound, ErrInvalidWorkspaceCwd:
 		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	// Stall-induced cancellations are retried by the reconciliation path,
+	// not by the generic retry classification. The exit handler for
+	// cancelled workers should only perform bookkeeping.
 	case ErrTurnCancelled:
 		return RetryClassification{Retryable: false, Backoff: BackoffNone}
 	case ErrTurnInputRequired:
