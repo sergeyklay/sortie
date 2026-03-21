@@ -658,4 +658,20 @@ func TestListWorkspaceKeys(t *testing.T) {
 			t.Errorf("ListWorkspaceKeys() = %v, want empty slice", got)
 		}
 	})
+
+	t.Run("empty root rejected", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := ListWorkspaceKeys("")
+		if err == nil {
+			t.Fatalf("ListWorkspaceKeys(\"\") error = nil, want non-nil, keys = %v", got)
+		}
+		var pe *PathError
+		if !errors.As(err, &pe) {
+			t.Fatalf("error type = %T, want *PathError", err)
+		}
+		if pe.Op != "resolve" {
+			t.Errorf("PathError.Op = %q, want %q", pe.Op, "resolve")
+		}
+	})
 }

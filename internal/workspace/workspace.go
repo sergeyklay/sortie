@@ -226,6 +226,13 @@ func Ensure(root, identifier string) (EnsureResult, error) {
 // callers are responsible for matching keys against known issue
 // identifiers.
 func ListWorkspaceKeys(root string) ([]string, error) {
+	if root == "" {
+		return nil, &PathError{
+			Op:  "resolve",
+			Err: errors.New("workspace root must not be empty"),
+		}
+	}
+
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
