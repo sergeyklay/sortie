@@ -60,9 +60,9 @@ type RunningEntry struct {
 	// from agent events.
 	AgentPID string
 
-	// LastAgentEvent is the most recent agent event type. Empty string
+	// LastAgentEvent is the most recent agent event type. Zero value
 	// until the first event arrives.
-	LastAgentEvent string
+	LastAgentEvent domain.AgentEventType
 
 	// LastAgentTimestamp is the UTC time of the most recent agent event.
 	// Zero value until the first event arrives.

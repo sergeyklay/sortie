@@ -158,6 +158,7 @@ func TestHandleAgentEvent_TurnCount(t *testing.T) {
 		eventType domain.AgentEventType
 	}{
 		{"session_started", domain.EventSessionStarted},
+		{"startup_failed", domain.EventStartupFailed},
 		{"notification", domain.EventNotification},
 		{"token_usage", domain.EventTokenUsage},
 		{"other_message", domain.EventOtherMessage},

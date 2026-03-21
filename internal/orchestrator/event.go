@@ -21,7 +21,7 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 	}
 
 	// Always record the most-recently-processed event type.
-	entry.LastAgentEvent = string(event.Type)
+	entry.LastAgentEvent = event.Type
 
 	// Advance the timestamp only when the incoming event is strictly
 	// later, preserving monotonicity under out-of-order delivery.
@@ -91,8 +91,8 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 }
 
 // shallowCopyMap allocates a new map containing all top-level key–value
-// pairs from src. The copy prevents the caller from mutating the stored
-// snapshot by modifying the original map.
+// pairs from src. The copy isolates the stored snapshot from top-level
+// mutations of the original map; nested mutable values are aliased.
 func shallowCopyMap(src map[string]any) map[string]any {
 	dst := make(map[string]any, len(src))
 	for k, v := range src {
