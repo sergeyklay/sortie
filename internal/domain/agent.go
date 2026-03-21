@@ -106,9 +106,9 @@ type AgentEvent struct {
 	SessionID string
 
 	// RateLimits is the latest rate-limit payload received from the agent
-	// adapter. Structure is adapter-defined and intentionally opaque to the
-	// orchestrator. Non-nil when rate-limit data is available; nil otherwise.
-	// Per architecture Section 13.5 (Rate-limit tracking).
+	// adapter. The keys and values are adapter-defined and intentionally
+	// opaque to the orchestrator. Non-nil when rate-limit data is available
+	// on a given event; nil otherwise.
 	RateLimits map[string]any
 }
 

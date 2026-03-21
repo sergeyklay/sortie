@@ -463,3 +463,123 @@ func TestHandleAgentEvent_MonotonicTimestamp(t *testing.T) {
 		t.Errorf("after event C: LastAgentTimestamp = %v, want %v", entry.LastAgentTimestamp, tPlus3)
 	}
 }
+
+// TestHandleAgentEvent_TokenUsage_CounterRegression verifies that when an
+// adapter reports a lower cumulative token count than previously seen
+// (counter regression), the monotonic baseline prevents double-counting
+// on subsequent legitimate increases.
+func TestHandleAgentEvent_TokenUsage_CounterRegression(t *testing.T) {
+	t.Parallel()
+
+	state, entry := newStateWithEntry("MT-11")
+	ts := time.Now().UTC()
+
+	// First report: {200, 100, 300}.
+	HandleAgentEvent(state, "MT-11", domain.AgentEvent{
+		Type:      domain.EventTokenUsage,
+		Timestamp: ts,
+		Usage:     domain.TokenUsage{InputTokens: 200, OutputTokens: 100, TotalTokens: 300},
+	})
+
+	if entry.AgentInputTokens != 200 {
+		t.Errorf("after 1st: AgentInputTokens = %d, want 200", entry.AgentInputTokens)
+	}
+
+	// Second report: regression {150, 80, 230} — delta clamped to zero,
+	// baselines must NOT regress.
+	HandleAgentEvent(state, "MT-11", domain.AgentEvent{
+		Type:      domain.EventTokenUsage,
+		Timestamp: ts,
+		Usage:     domain.TokenUsage{InputTokens: 150, OutputTokens: 80, TotalTokens: 230},
+	})
+
+	if entry.AgentInputTokens != 200 {
+		t.Errorf("after regression: AgentInputTokens = %d, want 200 (unchanged)", entry.AgentInputTokens)
+	}
+	if entry.LastReportedInputTokens != 200 {
+		t.Errorf("after regression: LastReportedInputTokens = %d, want 200 (must not regress)", entry.LastReportedInputTokens)
+	}
+	if entry.LastReportedOutputTokens != 100 {
+		t.Errorf("after regression: LastReportedOutputTokens = %d, want 100 (must not regress)", entry.LastReportedOutputTokens)
+	}
+	if entry.LastReportedTotalTokens != 300 {
+		t.Errorf("after regression: LastReportedTotalTokens = %d, want 300 (must not regress)", entry.LastReportedTotalTokens)
+	}
+
+	// Third report: legitimate increase {250, 120, 370} — delta is
+	// computed against the preserved baseline {200, 100, 300}, yielding
+	// {+50, +20, +70}. Without monotonic baselines this would compute
+	// against the regressed {150, 80, 230} and produce {+100, +40, +140},
+	// double-counting 50/20/70 tokens.
+	HandleAgentEvent(state, "MT-11", domain.AgentEvent{
+		Type:      domain.EventTokenUsage,
+		Timestamp: ts,
+		Usage:     domain.TokenUsage{InputTokens: 250, OutputTokens: 120, TotalTokens: 370},
+	})
+
+	if entry.AgentInputTokens != 250 {
+		t.Errorf("after recovery: AgentInputTokens = %d, want 250", entry.AgentInputTokens)
+	}
+	if entry.AgentOutputTokens != 120 {
+		t.Errorf("after recovery: AgentOutputTokens = %d, want 120", entry.AgentOutputTokens)
+	}
+	if entry.AgentTotalTokens != 370 {
+		t.Errorf("after recovery: AgentTotalTokens = %d, want 370", entry.AgentTotalTokens)
+	}
+	if state.AgentTotals.InputTokens != 250 {
+		t.Errorf("after recovery: AgentTotals.InputTokens = %d, want 250", state.AgentTotals.InputTokens)
+	}
+	if state.AgentTotals.OutputTokens != 120 {
+		t.Errorf("after recovery: AgentTotals.OutputTokens = %d, want 120", state.AgentTotals.OutputTokens)
+	}
+	if state.AgentTotals.TotalTokens != 370 {
+		t.Errorf("after recovery: AgentTotals.TotalTokens = %d, want 370", state.AgentTotals.TotalTokens)
+	}
+	if entry.LastReportedInputTokens != 250 {
+		t.Errorf("after recovery: LastReportedInputTokens = %d, want 250", entry.LastReportedInputTokens)
+	}
+}
+
+// TestHandleAgentEvent_RateLimits_OutOfOrder verifies that an out-of-order
+// event with a non-nil RateLimits payload does NOT overwrite a newer
+// snapshot. The monotonic timestamp guard on rate-limit storage ensures the
+// most recent payload survives reordering.
+func TestHandleAgentEvent_RateLimits_OutOfOrder(t *testing.T) {
+	t.Parallel()
+
+	state, _ := newStateWithEntry("MT-12")
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tPlus2 := base.Add(2 * time.Second)
+	tPlus1 := base.Add(1 * time.Second)
+
+	// Newer event arrives first at T+2s.
+	HandleAgentEvent(state, "MT-12", domain.AgentEvent{
+		Type:       domain.EventNotification,
+		Timestamp:  tPlus2,
+		RateLimits: map[string]any{"a": 1},
+	})
+
+	if state.AgentRateLimits == nil {
+		t.Fatal("AgentRateLimits = nil after first delivery")
+	}
+	if got := state.AgentRateLimits.Data["a"]; got != 1 {
+		t.Errorf("after newer event: Data[\"a\"] = %v, want 1", got)
+	}
+
+	// Older event arrives second at T+1s — must NOT overwrite.
+	HandleAgentEvent(state, "MT-12", domain.AgentEvent{
+		Type:       domain.EventNotification,
+		Timestamp:  tPlus1,
+		RateLimits: map[string]any{"b": 2},
+	})
+
+	if got := state.AgentRateLimits.Data["a"]; got != 1 {
+		t.Errorf("after out-of-order event: Data[\"a\"] = %v, want 1 (must not be overwritten)", got)
+	}
+	if _, exists := state.AgentRateLimits.Data["b"]; exists {
+		t.Error("after out-of-order event: Data[\"b\"] exists, want absent (older event must not replace newer snapshot)")
+	}
+	if !state.AgentRateLimits.ReceivedAt.Equal(tPlus2) {
+		t.Errorf("after out-of-order event: ReceivedAt = %v, want %v", state.AgentRateLimits.ReceivedAt, tPlus2)
+	}
+}
