@@ -38,16 +38,16 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 		entry.AgentPID = event.AgentPID
 	}
 
-	// Populate the session ID from the first EventSessionStarted event
-	// that carries a non-empty identifier.
+	// Overwrite the session ID on every EventSessionStarted event that
+	// carries a non-empty identifier. Claude Code spawns a fresh
+	// subprocess per turn, so the active session ID changes.
 	if event.Type == domain.EventSessionStarted && event.SessionID != "" {
 		entry.SessionID = event.SessionID
 	}
 
-	// Increment TurnCount on turn-finalization events only. This is
-	// adapter-agnostic: every adapter emits exactly one finalization
-	// event per completed turn regardless of how many session_started
-	// events it emits (per architecture Section 7.3).
+	// Increment TurnCount on turn-finalization events only. Every
+	// adapter emits exactly one finalization event per completed turn
+	// regardless of how many session_started events it produces.
 	switch event.Type {
 	case domain.EventTurnCompleted,
 		domain.EventTurnFailed,
@@ -59,7 +59,7 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 
 	// Apply the token delta algorithm when the adapter reports usage.
 	// Deltas are clamped to zero as a defensive guard against adapter
-	// regressions that emit decreasing counts (architecture Section 13.5).
+	// regressions that emit decreasing cumulative counts.
 	if event.Type == domain.EventTokenUsage {
 		deltaInput := max(event.Usage.InputTokens-entry.LastReportedInputTokens, 0)
 		deltaOutput := max(event.Usage.OutputTokens-entry.LastReportedOutputTokens, 0)
@@ -69,9 +69,9 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 		entry.AgentOutputTokens += deltaOutput
 		entry.AgentTotalTokens += deltaTotal
 
-		entry.LastReportedInputTokens = event.Usage.InputTokens
-		entry.LastReportedOutputTokens = event.Usage.OutputTokens
-		entry.LastReportedTotalTokens = event.Usage.TotalTokens
+		entry.LastReportedInputTokens = max(entry.LastReportedInputTokens, event.Usage.InputTokens)
+		entry.LastReportedOutputTokens = max(entry.LastReportedOutputTokens, event.Usage.OutputTokens)
+		entry.LastReportedTotalTokens = max(entry.LastReportedTotalTokens, event.Usage.TotalTokens)
 
 		state.AgentTotals.InputTokens += deltaInput
 		state.AgentTotals.OutputTokens += deltaOutput
@@ -83,9 +83,14 @@ func HandleAgentEvent(state *State, issueID string, event domain.AgentEvent) {
 	// after delivery (concurrent map write from worker goroutine vs HTTP
 	// server read would cause a data race).
 	if event.RateLimits != nil {
-		state.AgentRateLimits = &RateLimitSnapshot{
-			Data:       shallowCopyMap(event.RateLimits),
-			ReceivedAt: event.Timestamp,
+		// Only replace the snapshot when this event is at least as recent
+		// as the stored one, preserving monotonicity under out-of-order
+		// delivery.
+		if state.AgentRateLimits == nil || !event.Timestamp.Before(state.AgentRateLimits.ReceivedAt) {
+			state.AgentRateLimits = &RateLimitSnapshot{
+				Data:       shallowCopyMap(event.RateLimits),
+				ReceivedAt: event.Timestamp,
+			}
 		}
 	}
 }
