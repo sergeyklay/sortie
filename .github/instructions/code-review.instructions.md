@@ -24,17 +24,20 @@ Follow these steps in order. Do not skip steps.
 ## Architectural Layer Boundaries
 
 Imports flow strictly downward. A violation at this level is always a critical finding.
+`logging` is a utility package — any package may import it; it is omitted from the list below for brevity.
 
 ```
 cmd/sortie/            → internal/*                        (wiring only, no business logic)
-internal/orchestrator/ → internal/domain, persistence, workspace, tracker/*, agent/*, config, logging
-internal/workspace/    → internal/domain, logging
-internal/persistence/  → internal/domain, logging
-internal/tracker/*/    → internal/domain, logging          (no cross-adapter imports)
-internal/agent/*/      → internal/domain, logging          (no cross-adapter imports)
-internal/config/       → internal/domain, logging          (no orchestrator, no persistence)
-internal/workflow/     → internal/logging                  (no orchestrator, no persistence, no config)
-internal/prompt/       → internal/logging                  (no orchestrator, no persistence, no config)
+internal/server/       → internal/domain, config, orchestrator (HTTP API surface)
+internal/orchestrator/ → internal/domain, config, persistence, workspace, registry, tracker/*, agent/*, prompt, workflow
+internal/workflow/     → internal/config, prompt            (no orchestrator, no persistence, no domain)
+internal/workspace/    → internal/domain, config, persistence
+internal/persistence/  → internal/domain, config
+internal/registry/     → internal/domain                   (adapter registration — no orchestrator, no persistence)
+internal/tracker/*/    → internal/domain, registry          (no cross-adapter imports)
+internal/agent/*/      → internal/domain, registry          (no cross-adapter imports)
+internal/config/       → internal/domain                   (no orchestrator, no persistence)
+internal/prompt/       → internal/domain                   (no orchestrator, no persistence, no config)
 internal/domain/       → (nothing internal)                (pure types, interfaces, constants)
 internal/logging/      → (nothing internal)                (stdlib only)
 ```

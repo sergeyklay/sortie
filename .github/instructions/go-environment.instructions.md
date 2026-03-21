@@ -25,7 +25,6 @@ Read the Makefile to discover available targets before running any Go toolchain 
 ## Constraints
 
 - NEVER prefix commands with `GOPATH=...`, `GOMODCACHE=...`, or any Go environment overrides. The asdf shim configures everything.
-- NEVER run `go test`, `go build`, `go vet`, or `golangci-lint` directly. Use the corresponding `make` target.
 - NEVER use `/usr/local/go/bin/go`, `/usr/bin/go`, or any absolute path to a Go binary.
 - NEVER downgrade the `go` directive in `go.mod`. NEVER add or modify `toolchain` directives in `go.mod` unless explicitly asked.
 
