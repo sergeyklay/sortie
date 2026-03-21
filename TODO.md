@@ -271,7 +271,7 @@ just the ability to prepare and clean workspaces.
 The polling loop, dispatch, reconciliation, retry, and state machine. This is the central
 component. Uses mock adapters for tracker and agent - no real external calls.
 
-- [ ] 6.1 Implement the orchestrator state struct: running map, claimed set, retry attempts,
+- [x] 6.1 Implement the orchestrator state struct: running map, claimed set, retry attempts,
       completed set, agent totals (including `seconds_running`), agent rate limits. Implement
       slot availability calculation (global and per-state). See architecture Section 4.1.8.
       **Verify:** unit tests for slot math with various running/claimed combinations.
