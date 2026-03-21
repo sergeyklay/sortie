@@ -90,7 +90,7 @@ func HandleWorkerExit(state *State, result WorkerResult, params HandleWorkerExit
 
 	now := time.Now().UTC()
 	if params.NowFunc != nil {
-		now = params.NowFunc()
+		now = params.NowFunc().UTC()
 	}
 
 	elapsed := now.Sub(entry.StartedAt).Seconds()
