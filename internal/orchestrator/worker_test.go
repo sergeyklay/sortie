@@ -848,12 +848,17 @@ func TestRunWorkerAttempt(t *testing.T) {
 		cfg.Agent.MaxTurns = 5
 
 		ec := newExitCapture()
+		var stopCalled atomic.Bool
 
 		deps := WorkerDeps{
 			TrackerAdapter: &mockTrackerAdapter{},
 			AgentAdapter: &mockAgentAdapter{
 				runTurnFn: func(_ context.Context, _ domain.Session, _ domain.RunTurnParams) (domain.TurnResult, error) {
 					panic("unexpected agent crash")
+				},
+				stopSessionFn: func(_ context.Context, _ domain.Session) error {
+					stopCalled.Store(true)
+					return nil
 				},
 			},
 			ConfigFunc:         func() config.ServiceConfig { return cfg },
@@ -884,6 +889,9 @@ func TestRunWorkerAttempt(t *testing.T) {
 		}
 		if result.SessionID != "sess-1" {
 			t.Errorf("SessionID = %q, want %q (session started before panic)", result.SessionID, "sess-1")
+		}
+		if !stopCalled.Load() {
+			t.Error("StopSession was not called during panic recovery, want teardown")
 		}
 		if ec.count() != 1 {
 			t.Errorf("OnExit call count = %d, want 1", ec.count())
@@ -1012,12 +1020,17 @@ func TestRunWorkerAttempt(t *testing.T) {
 		cfg.Hooks.AfterRun = fmt.Sprintf("touch %s", markerPath)
 
 		ec := newExitCapture()
+		var stopCalled atomic.Bool
 
 		deps := WorkerDeps{
 			TrackerAdapter: &mockTrackerAdapter{},
 			AgentAdapter: &mockAgentAdapter{
 				runTurnFn: func(_ context.Context, _ domain.Session, _ domain.RunTurnParams) (domain.TurnResult, error) {
 					panic("crash after session")
+				},
+				stopSessionFn: func(_ context.Context, _ domain.Session) error {
+					stopCalled.Store(true)
+					return nil
 				},
 			},
 			ConfigFunc:         func() config.ServiceConfig { return cfg },
@@ -1037,6 +1050,124 @@ func TestRunWorkerAttempt(t *testing.T) {
 		// Verify after_run hook was executed during panic recovery.
 		if _, err := os.Stat(markerPath); err != nil {
 			t.Errorf("after_run marker file not found: %v (workspace.Finish not called during panic recovery)", err)
+		}
+		if !stopCalled.Load() {
+			t.Error("StopSession was not called during panic recovery, want teardown")
+		}
+	})
+
+	t.Run("max_turns_clamped", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cfg := defaultWorkerConfig(tmpDir)
+		cfg.Agent.MaxTurns = 0 // Invalid: should be clamped to 1.
+
+		ec := newExitCapture()
+
+		deps := WorkerDeps{
+			TrackerAdapter:     &mockTrackerAdapter{},
+			AgentAdapter:       &mockAgentAdapter{},
+			ConfigFunc:         func() config.ServiceConfig { return cfg },
+			PromptTemplateFunc: func() *prompt.Template { return mustParseTemplate(t, "{{ .issue.title }}") },
+			OnEvent:            func(_ string, _ domain.AgentEvent) {},
+			OnExit:             ec.onExit,
+			Logger:             discardLogger(),
+		}
+
+		RunWorkerAttempt(context.Background(), workerTestIssue(), nil, deps)
+
+		result := ec.waitResult(t)
+		if result.ExitKind != WorkerExitNormal {
+			t.Errorf("ExitKind = %q, want %q", result.ExitKind, WorkerExitNormal)
+		}
+		if result.TurnsCompleted != 1 {
+			t.Errorf("TurnsCompleted = %d, want 1 (max_turns clamped from 0)", result.TurnsCompleted)
+		}
+		if result.Error != nil {
+			t.Errorf("Error = %v, want nil", result.Error)
+		}
+	})
+
+	t.Run("max_turns_clamped_negative", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cfg := defaultWorkerConfig(tmpDir)
+		cfg.Agent.MaxTurns = -5 // Negative: should be clamped to 1.
+
+		ec := newExitCapture()
+
+		deps := WorkerDeps{
+			TrackerAdapter:     &mockTrackerAdapter{},
+			AgentAdapter:       &mockAgentAdapter{},
+			ConfigFunc:         func() config.ServiceConfig { return cfg },
+			PromptTemplateFunc: func() *prompt.Template { return mustParseTemplate(t, "{{ .issue.title }}") },
+			OnEvent:            func(_ string, _ domain.AgentEvent) {},
+			OnExit:             ec.onExit,
+			Logger:             discardLogger(),
+		}
+
+		RunWorkerAttempt(context.Background(), workerTestIssue(), nil, deps)
+
+		result := ec.waitResult(t)
+		if result.ExitKind != WorkerExitNormal {
+			t.Errorf("ExitKind = %q, want %q", result.ExitKind, WorkerExitNormal)
+		}
+		if result.TurnsCompleted != 1 {
+			t.Errorf("TurnsCompleted = %d, want 1 (max_turns clamped from -5)", result.TurnsCompleted)
+		}
+	})
+
+	t.Run("panic_with_turns_completed", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cfg := defaultWorkerConfig(tmpDir)
+		cfg.Agent.MaxTurns = 5
+
+		var turnCount atomic.Int64
+		ec := newExitCapture()
+
+		deps := WorkerDeps{
+			TrackerAdapter: &mockTrackerAdapter{},
+			AgentAdapter: &mockAgentAdapter{
+				runTurnFn: func(_ context.Context, session domain.Session, params domain.RunTurnParams) (domain.TurnResult, error) {
+					n := turnCount.Add(1)
+					if n >= 2 {
+						panic("crash on turn 2")
+					}
+					if params.OnEvent != nil {
+						params.OnEvent(domain.AgentEvent{Type: domain.EventNotification, Timestamp: time.Now().UTC()})
+					}
+					return domain.TurnResult{SessionID: session.ID, ExitReason: domain.EventTurnCompleted}, nil
+				},
+			},
+			ConfigFunc:         func() config.ServiceConfig { return cfg },
+			PromptTemplateFunc: func() *prompt.Template { return mustParseTemplate(t, "{{ .issue.title }}") },
+			OnEvent:            func(_ string, _ domain.AgentEvent) {},
+			OnExit:             ec.onExit,
+			Logger:             discardLogger(),
+		}
+
+		RunWorkerAttempt(context.Background(), workerTestIssue(), nil, deps)
+
+		result := ec.waitResult(t)
+		if result.ExitKind != WorkerExitError {
+			t.Errorf("ExitKind = %q, want %q", result.ExitKind, WorkerExitError)
+		}
+		if result.Error == nil {
+			t.Fatal("Error is nil, want non-nil")
+		}
+		if !strings.Contains(result.Error.Error(), "worker panic") {
+			t.Errorf("Error = %q, want to contain %q", result.Error, "worker panic")
+		}
+		// Turn 1 completed successfully before the panic on turn 2.
+		if result.TurnsCompleted != 1 {
+			t.Errorf("TurnsCompleted = %d, want 1 (turn 1 completed, panic on turn 2)", result.TurnsCompleted)
+		}
+		if result.SessionID != "sess-1" {
+			t.Errorf("SessionID = %q, want %q", result.SessionID, "sess-1")
 		}
 	})
 }

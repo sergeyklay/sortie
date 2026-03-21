@@ -212,9 +212,15 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 	// Pre-declared so the panic recovery defer can access them.
 	var workspacePath string
 	var sessionID string
+	var turnsCompleted int
+	var session domain.Session
+	var sessionStarted bool
 
 	defer func() {
 		if r := recover(); r != nil {
+			if sessionStarted {
+				stopSessionBestEffort(ctx, deps.AgentAdapter, session, cfg, logger)
+			}
 			if workspacePath != "" {
 				workspace.Finish(ctx, workspace.FinishParams{
 					Path:          workspacePath,
@@ -228,14 +234,15 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 			}
 			if !reported {
 				deps.OnExit(issue.ID, WorkerResult{
-					IssueID:       issue.ID,
-					Identifier:    issue.Identifier,
-					ExitKind:      WorkerExitError,
-					Error:         fmt.Errorf("worker panic: %v", r),
-					SessionID:     sessionID,
-					WorkspacePath: workspacePath,
-					AgentAdapter:  cfg.Agent.Kind,
-					Attempt:       attempt,
+					IssueID:        issue.ID,
+					Identifier:     issue.Identifier,
+					ExitKind:       WorkerExitError,
+					Error:          fmt.Errorf("worker panic: %v", r),
+					TurnsCompleted: turnsCompleted,
+					SessionID:      sessionID,
+					WorkspacePath:  workspacePath,
+					AgentAdapter:   cfg.Agent.Kind,
+					Attempt:        attempt,
 				})
 			}
 		}
@@ -299,7 +306,7 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 	}
 
 	// Phase 2: Agent Session Start.
-	session, err := deps.AgentAdapter.StartSession(ctx, domain.StartSessionParams{
+	session, err = deps.AgentAdapter.StartSession(ctx, domain.StartSessionParams{
 		WorkspacePath:   wsResult.Path,
 		AgentConfig:     toDomainAgentConfig(cfg.Agent),
 		ResumeSessionID: deps.ResumeSessionID,
@@ -319,13 +326,17 @@ func RunWorkerAttempt(ctx context.Context, issue domain.Issue, attempt *int, dep
 		return
 	}
 
+	sessionStarted = true
 	sessionID = session.ID
 	logger.Info("agent session started", "session_id", session.ID)
 
 	// Phase 3: Multi-Turn Loop.
 	maxTurns := cfg.Agent.MaxTurns
+	if maxTurns < 1 {
+		logger.Warn("agent max_turns is less than 1; clamping to 1", "configured_max_turns", cfg.Agent.MaxTurns)
+		maxTurns = 1
+	}
 	turnNumber := 1
-	turnsCompleted := 0
 	activeStates := cfg.Tracker.ActiveStates
 
 	for {
