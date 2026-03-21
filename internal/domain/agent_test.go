@@ -228,6 +228,59 @@ func TestSession_InternalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestAgentErrorKind_RetryClassification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		kind          AgentErrorKind
+		wantRetryable bool
+		wantBackoff   BackoffStrategy
+	}{
+		{"agent_not_found", ErrAgentNotFound, false, BackoffNone},
+		{"invalid_workspace_cwd", ErrInvalidWorkspaceCwd, false, BackoffNone},
+		{"response_timeout", ErrResponseTimeout, true, BackoffExponential},
+		{"turn_timeout", ErrTurnTimeout, true, BackoffExponential},
+		{"port_exit", ErrPortExit, true, BackoffExponential},
+		{"response_error", ErrResponseError, true, BackoffExponential},
+		{"turn_failed", ErrTurnFailed, true, BackoffExponential},
+		{"turn_cancelled", ErrTurnCancelled, false, BackoffNone},
+		{"turn_input_required", ErrTurnInputRequired, false, BackoffNone},
+	}
+
+	if len(tests) != 9 {
+		t.Errorf("expected 9 agent error kinds, got %d", len(tests))
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.kind.RetryClassification()
+
+			if got.Retryable != tt.wantRetryable {
+				t.Errorf("%s.RetryClassification().Retryable = %v, want %v", tt.kind, got.Retryable, tt.wantRetryable)
+			}
+			if got.Backoff != tt.wantBackoff {
+				t.Errorf("%s.RetryClassification().Backoff = %q, want %q", tt.kind, got.Backoff, tt.wantBackoff)
+			}
+		})
+	}
+
+	t.Run("unknown_kind", func(t *testing.T) {
+		t.Parallel()
+
+		got := AgentErrorKind("unknown_future_kind").RetryClassification()
+
+		if !got.Retryable {
+			t.Errorf("unknown kind: Retryable = false, want true")
+		}
+		if got.Backoff != BackoffExponential {
+			t.Errorf("unknown kind: Backoff = %q, want %q", got.Backoff, BackoffExponential)
+		}
+	})
+}
+
 func TestAgentEvent_Construction(t *testing.T) {
 	t.Parallel()
 

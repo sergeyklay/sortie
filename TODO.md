@@ -313,7 +313,7 @@ component. Uses mock adapters for tracker and agent - no real external calls.
       turn_completed), confirms running entry fields are updated correctly, token deltas are
       accumulated without double-counting, and agent_totals reflect the sum.
 
-- [ ] 6.6 Add retry semantics to error categories: extend `TrackerErrorKind` and
+- [x] 6.6 Add retry semantics to error categories: extend `TrackerErrorKind` and
       `AgentErrorKind` with a helper that returns whether a given error kind is retryable
       and its recommended backoff strategy (immediate, exponential, or non-retryable).
       For example: `tracker_transport_error` is retryable with exponential backoff,

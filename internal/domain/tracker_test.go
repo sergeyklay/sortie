@@ -141,3 +141,55 @@ func TestTrackerError_UnwrapNil(t *testing.T) {
 		t.Errorf("Unwrap() = %v, want nil", err.Unwrap())
 	}
 }
+
+func TestTrackerErrorKind_RetryClassification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		kind          TrackerErrorKind
+		wantRetryable bool
+		wantBackoff   BackoffStrategy
+	}{
+		{"unsupported_tracker_kind", ErrUnsupportedTrackerKind, false, BackoffNone},
+		{"missing_tracker_api_key", ErrMissingTrackerAPIKey, false, BackoffNone},
+		{"missing_tracker_project", ErrMissingTrackerProject, false, BackoffNone},
+		{"tracker_transport_error", ErrTrackerTransport, true, BackoffExponential},
+		{"tracker_auth_error", ErrTrackerAuth, false, BackoffNone},
+		{"tracker_api_error", ErrTrackerAPI, true, BackoffExponential},
+		{"tracker_payload_error", ErrTrackerPayload, false, BackoffNone},
+		{"tracker_missing_end_cursor", ErrTrackerMissingCursor, true, BackoffExponential},
+	}
+
+	if len(tests) != 8 {
+		t.Errorf("expected 8 tracker error kinds, got %d", len(tests))
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.kind.RetryClassification()
+
+			if got.Retryable != tt.wantRetryable {
+				t.Errorf("%s.RetryClassification().Retryable = %v, want %v", tt.kind, got.Retryable, tt.wantRetryable)
+			}
+			if got.Backoff != tt.wantBackoff {
+				t.Errorf("%s.RetryClassification().Backoff = %q, want %q", tt.kind, got.Backoff, tt.wantBackoff)
+			}
+		})
+	}
+
+	t.Run("unknown_kind", func(t *testing.T) {
+		t.Parallel()
+
+		got := TrackerErrorKind("unknown_future_kind").RetryClassification()
+
+		if !got.Retryable {
+			t.Errorf("unknown kind: Retryable = false, want true")
+		}
+		if got.Backoff != BackoffExponential {
+			t.Errorf("unknown kind: Backoff = %q, want %q", got.Backoff, BackoffExponential)
+		}
+	})
+}

@@ -138,3 +138,65 @@ func (e *AgentError) Error() string {
 func (e *AgentError) Unwrap() error {
 	return e.Err
 }
+
+// BackoffStrategy classifies the recommended delay behavior when
+// retrying after a specific error category.
+type BackoffStrategy string
+
+const (
+	// BackoffNone indicates the error is not retryable. The orchestrator
+	// should release the claim instead of scheduling a retry.
+	BackoffNone BackoffStrategy = "none"
+
+	// BackoffExponential indicates exponential-backoff retry using the
+	// formula min(10000 * 2^(attempt-1), max_retry_backoff_ms).
+	BackoffExponential BackoffStrategy = "exponential"
+)
+
+// RetryClassification describes whether an error category is retryable
+// and, if so, the recommended backoff strategy.
+type RetryClassification struct {
+	// Retryable is true when the error category represents a transient
+	// or recoverable condition that may succeed on a subsequent attempt.
+	Retryable bool
+
+	// Backoff is the recommended delay strategy. Meaningful only when
+	// Retryable is true; BackoffNone when Retryable is false.
+	Backoff BackoffStrategy
+}
+
+// RetryClassification returns the default retry semantics for this
+// tracker error kind. The orchestrator uses this to decide between
+// exponential-backoff retry and releasing the claim.
+func (k TrackerErrorKind) RetryClassification() RetryClassification {
+	switch k {
+	case ErrUnsupportedTrackerKind, ErrMissingTrackerAPIKey, ErrMissingTrackerProject:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrTrackerAuth:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrTrackerPayload:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrTrackerTransport, ErrTrackerAPI, ErrTrackerMissingCursor:
+		return RetryClassification{Retryable: true, Backoff: BackoffExponential}
+	default:
+		return RetryClassification{Retryable: true, Backoff: BackoffExponential}
+	}
+}
+
+// RetryClassification returns the default retry semantics for this
+// agent error kind. The orchestrator uses this to decide between
+// exponential-backoff retry and releasing the claim.
+func (k AgentErrorKind) RetryClassification() RetryClassification {
+	switch k {
+	case ErrAgentNotFound, ErrInvalidWorkspaceCwd:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrTurnCancelled:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrTurnInputRequired:
+		return RetryClassification{Retryable: false, Backoff: BackoffNone}
+	case ErrResponseTimeout, ErrTurnTimeout, ErrPortExit, ErrResponseError, ErrTurnFailed:
+		return RetryClassification{Retryable: true, Backoff: BackoffExponential}
+	default:
+		return RetryClassification{Retryable: true, Backoff: BackoffExponential}
+	}
+}
